@@ -79,6 +79,11 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
       handleChange('smtp_host', 'smtp-relay.brevo.com');
       handleChange('smtp_port', 2525);
       handleChange('smtp_secure', false);
+      if (!formData.smtp_from_email || formData.smtp_from_email.includes('@smtp-brevo.com')) {
+        if (formData.email && !formData.email.includes('@smtp-brevo.com')) {
+          handleChange('smtp_from_email', formData.email);
+        }
+      }
     }
   };
 
@@ -795,13 +800,13 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
               </button>
             </div>
 
-            {/* Render Free Tier Advisory Alert */}
-            <div style={{ background: '#fef3c7', border: '1px solid #fde68a', padding: '14px 18px', borderRadius: '10px', fontSize: '12.5px', color: '#92400e', lineHeight: 1.5 }}>
-              <strong>⚡ Important Note for Render Free Tier:</strong>
-              <div style={{ marginTop: '4px' }}>
-                Render's Free Tier blocks outbound SMTP traffic on ports <strong>25, 465, and 587</strong> (causing direct Gmail connections to time out).
-                If hosting on Render Free Tier, use <strong>Brevo on Port 2525</strong> (click the preset above; 300 free emails/day) which bypasses the block, or upgrade your Render Web Service to the $7 Starter tier.
-              </div>
+            {/* Render Free Tier & Brevo Advisory Alert */}
+            <div style={{ background: '#fef3c7', border: '1px solid #fde68a', padding: '16px 20px', borderRadius: '10px', fontSize: '13px', color: '#92400e', lineHeight: 1.5 }}>
+              <strong>⚡ Important for Brevo & Render Free Tier:</strong>
+              <ul style={{ paddingLeft: '18px', marginTop: '6px', marginBottom: 0 }}>
+                <li><strong>Port 2525:</strong> Render's Free Tier blocks ports 25, 465, and 587. Brevo on <strong>Port 2525</strong> bypasses the block and works reliably on Render Free Tier (300 free emails/day).</li>
+                <li style={{ marginTop: '5px' }}><strong>Sender Email Requirement:</strong> Brevo strictly requires that the <strong>"Sender Email Address (From Email)"</strong> below matches your registered Brevo account email (or an authorized sender in Brevo). <em>Never use @smtp-brevo.com as the From Email.</em></li>
+              </ul>
             </div>
 
             {/* Zero-Cost SMTP Setup Guide */}
@@ -899,14 +904,20 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
               </div>
 
               <div className="form-group">
-                <label className="form-label">Sender Reply-to Email</label>
+                <label className="form-label">
+                  <span>Sender Email Address (From Email)</span>
+                  <span className="required">*</span>
+                </label>
                 <input
                   type="email"
                   className="form-control"
-                  placeholder={formData.email || 'info@bridgeoflove.org'}
+                  placeholder="e.g. your_registered_email@gmail.com"
                   value={formData.smtp_from_email || ''}
                   onChange={(e) => handleChange('smtp_from_email', e.target.value)}
                 />
+                <span className="form-help" style={{ color: '#0369a1', marginTop: '4px', display: 'block', fontSize: '11.5px' }}>
+                  <strong>Crucial for Brevo:</strong> Enter the exact email address you registered your Brevo account with (or a verified sender in Brevo). <em>Never use @smtp-brevo.com here.</em>
+                </span>
               </div>
             </div>
 

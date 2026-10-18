@@ -42,10 +42,23 @@ async function getTransporter() {
     socketTimeout: 15000,
   });
 
+  let fromEmail = (settings.smtp_from_email || process.env.SMTP_FROM_EMAIL || '').trim();
+  if (!fromEmail || fromEmail.includes('@smtp-brevo.com')) {
+    if (settings.email && !settings.email.includes('@smtp-brevo.com')) {
+      fromEmail = settings.email.trim();
+    } else if (user && !user.includes('@smtp-brevo.com')) {
+      fromEmail = user;
+    }
+  }
+
+  if (!fromEmail || fromEmail.includes('@smtp-brevo.com')) {
+    throw new Error('Invalid Sender Email: Brevo requires a verified sender email address (the email you used to register your Brevo account, e.g. your Gmail). Please go to Trust Settings and set "Sender Email Address (From Email)" to your verified email.');
+  }
+
   return {
     isMock: false,
     transporter,
-    fromEmail: settings.smtp_from_email || user,
+    fromEmail,
     fromName: settings.smtp_from_name || settings.trust_name || 'BRIDGE OF LOVE',
   };
 }
