@@ -386,7 +386,7 @@ export default function NewReceiptModal({
                         </div>
                       )}
                     </div>
-                    <img src="/logo.png" alt="Logo" style={{ width: '44px', height: '44px', objectFit: 'contain' }} />
+                    <img src="/mother.png" alt="Mother Teresa" style={{ width: '54px', height: '62px', objectFit: 'contain' }} onError={(e) => { e.target.style.display = 'none'; }} />
                   </div>
 
                   <div style={{ background: '#f1f5f9', color: '#003366', textAlign: 'center', fontWeight: 'bold', fontSize: '14px', padding: '6px', marginBottom: '14px' }}>

@@ -5,6 +5,7 @@ const path = require('path');
 const LOGO_PATH = path.join(__dirname, '../assets/logo.png');
 const HANDS_HEART_PATH = path.join(__dirname, '../assets/hands_heart.png');
 const SIGN_PATH = path.join(__dirname, '../assets/sign.png');
+const MOTHER_PATH = path.join(__dirname, '../assets/mother.png');
 
 
 /**
@@ -49,7 +50,7 @@ function generateReceiptPdf(receipt, settings = {}) {
         // Position behind the main voucher body (Receipt No, Donor & Donation Details)
         const watermarkY = 465;
         doc.save();
-        doc.opacity(0.25);
+        doc.opacity(0.10);
         doc.image(HANDS_HEART_PATH, watermarkX, watermarkY, { width: watermarkWidth, height: watermarkHeight });
         doc.restore();
       }
@@ -57,13 +58,15 @@ function generateReceiptPdf(receipt, settings = {}) {
       let y = margin + 12;
 
       // 2. Header: Logos & Organization Details
-      const logoWidth = 48;
-      const logoHeight = 48;
+      const logoWidth = 110;
+      const logoHeight = 100;
       const hasLogo = fs.existsSync(LOGO_PATH);
 
       if (hasLogo) {
-        doc.image(LOGO_PATH, margin + 12, y + 4, { width: logoWidth, height: logoHeight });
-        doc.image(LOGO_PATH, pageWidth - margin - 12 - logoWidth, y + 4, { width: logoWidth, height: logoHeight });
+        doc.image(LOGO_PATH, margin + 12, y, { width: logoWidth, height: logoHeight });
+      }
+      if (fs.existsSync(MOTHER_PATH)) {
+        doc.image(MOTHER_PATH, 455, y - 10, { width: 95, height: 110 });
       }
 
       // Title & Mottos (100% Dynamic) with emblems before and next to trust name
@@ -273,7 +276,7 @@ function generateReceiptPdf(receipt, settings = {}) {
         // Position behind the main voucher body (Receipt No, Donor & Donation Details)
         const watermarkY = 465;
         doc.save();
-        doc.opacity(0.50);
+        doc.opacity(0.20);
         doc.image(HANDS_HEART_PATH, watermarkX, watermarkY, { width: watermarkWidth, height: watermarkHeight });
         doc.restore();
       }
@@ -327,14 +330,16 @@ function generateReceiptPdf(receipt, settings = {}) {
       doc.font('Helvetica-Oblique').fontSize(7.5).fillColor('#1e293b')
         .text('“To build an inclusive and empathetic society where no individual is left behind in suffering, bridging the gap between privilege and poverty through unconditional love, mutual respect, and selfless service.”', col1X, boxY + 28, {
           width: colInnerWidth,
+          style: 'bold',
           align: 'center',
           lineGap: 2.2,
         });
 
       if (hasTamilFont) {
-        doc.font('TamilFont').fontSize(7.2).fillColor('#475569')
+        doc.font('TamilFont').fontSize(7.5).fillColor('#475569')
           .text('“அன்பும் இரக்கமும் நிறைந்த ஒரு சமூகத்தை உருவாக்குதல்; நலிந்த மற்றும் வறிய மக்களின் துயர் துடைத்து வாழ்வொளி ஏற்றுதல்.”', col1X, boxY + 76, {
             width: colInnerWidth,
+            style: 'bold',
             align: 'center',
             lineGap: 1.5,
           });
@@ -351,6 +356,7 @@ function generateReceiptPdf(receipt, settings = {}) {
       doc.font('Helvetica-Oblique').fontSize(7.5).fillColor('#1e293b')
         .text('“To connect compassionate hearts with people in need—extending immediate relief, educational aid, and essential sustenance to underserved communities with total transparency, dignity, and collective action.”', col2X, boxY + 28, {
           width: colInnerWidth,
+          style: 'bold',
           align: 'center',
           lineGap: 2.2,
         });

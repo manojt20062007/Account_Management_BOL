@@ -128,9 +128,9 @@ export default function ViewReceiptModal({ receipt, settings, isOpen, onClose, o
                 </div>
               </div>
               <img
-                src="/logo.png"
-                alt="Bridge of Love Logo"
-                style={{ width: '50px', height: '50px', objectFit: 'contain' }}
+                src="/mother.png"
+                alt="Mother Teresa"
+                style={{ width: '85px', height: '95px', objectFit: 'contain' }}
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
             </div>
