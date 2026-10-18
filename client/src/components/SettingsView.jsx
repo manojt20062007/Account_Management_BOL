@@ -75,6 +75,10 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
       handleChange('smtp_host', 'smtp.office365.com');
       handleChange('smtp_port', 587);
       handleChange('smtp_secure', false);
+    } else if (preset === 'brevo') {
+      handleChange('smtp_host', 'smtp-relay.brevo.com');
+      handleChange('smtp_port', 2525);
+      handleChange('smtp_secure', false);
     }
   };
 
@@ -781,6 +785,23 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
               >
                 Outlook / 365 (Port 587)
               </button>
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                style={{ borderColor: '#0284c7', color: '#0284c7', fontWeight: 600 }}
+                onClick={() => applySmtpPreset('brevo')}
+              >
+                ★ Brevo (Port 2525 - Render Free Safe)
+              </button>
+            </div>
+
+            {/* Render Free Tier Advisory Alert */}
+            <div style={{ background: '#fef3c7', border: '1px solid #fde68a', padding: '14px 18px', borderRadius: '10px', fontSize: '12.5px', color: '#92400e', lineHeight: 1.5 }}>
+              <strong>⚡ Important Note for Render Free Tier:</strong>
+              <div style={{ marginTop: '4px' }}>
+                Render's Free Tier blocks outbound SMTP traffic on ports <strong>25, 465, and 587</strong> (causing direct Gmail connections to time out).
+                If hosting on Render Free Tier, use <strong>Brevo on Port 2525</strong> (click the preset above; 300 free emails/day) which bypasses the block, or upgrade your Render Web Service to the $7 Starter tier.
+              </div>
             </div>
 
             {/* Zero-Cost SMTP Setup Guide */}

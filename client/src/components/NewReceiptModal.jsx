@@ -78,8 +78,16 @@ export default function NewReceiptModal({
 
     setSubmitting(true);
     try {
+      const now = new Date();
+      const clientISTTime = now.toLocaleTimeString('en-IN', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
       await onSubmit({
         ...formData,
+        receipt_time: clientISTTime,
         donor_id: donorMode === 'existing' && selectedDonorId ? parseInt(selectedDonorId) : null,
       });
       onClose();
@@ -397,7 +405,7 @@ export default function NewReceiptModal({
                       <tr>
                         <td style={{ padding: '6px 10px', border: '1px solid #cbd5e1', fontWeight: 'bold' }}>[Auto Assigned]</td>
                         <td style={{ padding: '6px 10px', border: '1px solid #cbd5e1', textAlign: 'center' }}>{new Date(formData.receipt_date).toLocaleDateString('en-IN')}</td>
-                        <td style={{ padding: '6px 10px', border: '1px solid #cbd5e1', textAlign: 'center' }}>{new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</td>
+                        <td style={{ padding: '6px 10px', border: '1px solid #cbd5e1', textAlign: 'center' }}>{new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true })}</td>
                       </tr>
                     </tbody>
                   </table>

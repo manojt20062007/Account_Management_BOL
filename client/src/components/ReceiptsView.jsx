@@ -190,7 +190,11 @@ export default function ReceiptsView({
                     </td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span className={`status-badge ${r.email_status ? r.email_status.toLowerCase().replace(/[^a-z]/g, '') : 'pending'}`}>
+                        <span 
+                          className={`status-badge ${r.email_status ? r.email_status.toLowerCase().replace(/[^a-z]/g, '') : 'pending'}`}
+                          title={r.email_error || (r.email_status === 'Sent' ? 'Dispatched successfully via SMTP' : 'Email status')}
+                          style={{ cursor: r.email_error ? 'help' : 'default' }}
+                        >
                           {r.email_status || 'Pending'}
                         </span>
                         {r.donor_email && (

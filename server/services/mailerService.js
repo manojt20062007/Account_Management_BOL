@@ -12,8 +12,9 @@ async function getTransporter() {
   const host = settings.smtp_host || process.env.SMTP_HOST || 'smtp.gmail.com';
   const port = parseInt(settings.smtp_port || process.env.SMTP_PORT || '587');
   const secure = settings.smtp_secure !== undefined ? settings.smtp_secure : (process.env.SMTP_SECURE === 'true');
-  const user = settings.smtp_user || process.env.SMTP_USER || '';
-  const pass = settings.smtp_pass || process.env.SMTP_PASS || '';
+  const user = (settings.smtp_user || process.env.SMTP_USER || '').trim();
+  const rawPass = (settings.smtp_pass || process.env.SMTP_PASS || '').trim();
+  const pass = rawPass.replace(/\s+/g, '');
 
   if (!user || !pass) {
     // If user has not yet configured credentials, use ethereal / fallback test transporter
@@ -21,7 +22,7 @@ async function getTransporter() {
       isMock: true,
       transporter: null,
       fromEmail: settings.email || 'trust.receipts@example.org',
-      fromName: settings.trust_name || 'Charitable Trust Office',
+      fromName: settings.trust_name || 'BRIDGE OF LOVE',
     };
   }
 
@@ -36,13 +37,16 @@ async function getTransporter() {
     tls: {
       rejectUnauthorized: false,
     },
+    connectionTimeout: 10000, // 10s connection timeout for fast failover/reporting
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
   });
 
   return {
     isMock: false,
     transporter,
     fromEmail: settings.smtp_from_email || user,
-    fromName: settings.smtp_from_name || settings.trust_name || 'Charitable Trust Office',
+    fromName: settings.smtp_from_name || settings.trust_name || 'BRIDGE OF LOVE',
   };
 }
 
@@ -142,14 +146,16 @@ async function sendReceiptEmail(receipt, pdfBuffer) {
 
     if (mailConfig.isMock) {
       console.log(`[SMTP Notice] Real SMTP credentials (Gmail App Password) not configured yet in settings. Simulating delivery for receipt ${receipt.receipt_number} to ${receipt.donor_email}`);
-      await query(
-        `UPDATE receipts SET email_status = 'Sent (Simulated)', emailed_at = NOW(), email_error = NULL WHERE id = $1`,
-        [receipt.id]
-      );
-      await query(
-        `INSERT INTO dispatch_logs (receipt_id, channel, recipient, status, details) VALUES ($1, 'Email', $2, 'Sent (Simulated)', 'Simulated dispatch. Configure SMTP in Trust Settings for live delivery.')`,
-        [receipt.id, receipt.donor_email]
-      );
+      if (receipt.id && receipt.id > 0) {
+        await query(
+          `UPDATE receipts SET email_status = 'Sent (Simulated)', emailed_at = NOW(), email_error = NULL WHERE id = $1`,
+          [receipt.id]
+        );
+        await query(
+          `INSERT INTO dispatch_logs (receipt_id, channel, recipient, status, details) VALUES ($1, 'Email', $2, 'Sent (Simulated)', 'Simulated dispatch. Configure SMTP in Trust Settings for live delivery.')`,
+          [receipt.id, receipt.donor_email]
+        );
+      }
       return { success: true, simulated: true };
     }
 
@@ -170,28 +176,40 @@ async function sendReceiptEmail(receipt, pdfBuffer) {
     const info = await mailConfig.transporter.sendMail(mailOptions);
     console.log(`[SMTP Mailer] Receipt ${receipt.receipt_number} sent successfully to ${receipt.donor_email}:`, info.messageId);
 
-    await query(
-      `UPDATE receipts SET email_status = 'Sent', emailed_at = NOW(), email_error = NULL WHERE id = $1`,
-      [receipt.id]
-    );
+    if (receipt.id && receipt.id > 0) {
+      await query(
+        `UPDATE receipts SET email_status = 'Sent', emailed_at = NOW(), email_error = NULL WHERE id = $1`,
+        [receipt.id]
+      );
 
-    await query(
-      `INSERT INTO dispatch_logs (receipt_id, channel, recipient, status, details) VALUES ($1, 'Email', $2, 'Sent', $3)`,
-      [receipt.id, receipt.donor_email, `Message ID: ${info.messageId}`]
-    );
+      await query(
+        `INSERT INTO dispatch_logs (receipt_id, channel, recipient, status, details) VALUES ($1, 'Email', $2, 'Sent', $3)`,
+        [receipt.id, receipt.donor_email, `Message ID: ${info.messageId}`]
+      );
+    }
 
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error(`[SMTP Mailer Error] Failed to send email to ${receipt.donor_email}:`, error);
-    await query(
-      `UPDATE receipts SET email_status = 'Failed', email_error = $1 WHERE id = $2`,
-      [error.message, receipt.id]
-    );
-    await query(
-      `INSERT INTO dispatch_logs (receipt_id, channel, recipient, status, details) VALUES ($1, 'Email', $2, 'Failed', $3)`,
-      [receipt.id, receipt.donor_email, error.message]
-    );
-    return { success: false, error: error.message };
+    let detailedError = error.message;
+    if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
+      detailedError = `Connection to SMTP server timed out (${error.code || 'TIMEOUT'}). Note: Render Free Tier blocks outbound SMTP ports 25, 465, and 587. To send on Render Free: use Brevo on Port 2525 (allowed on free tier) or upgrade Render instance to Starter.`;
+    } else if (error.message.includes('535') || error.message.includes('Username and Password not accepted')) {
+      detailedError = `Google rejected SMTP login (535). Please ensure 2-Step Verification is enabled and you generated a 16-letter App Password at myaccount.google.com/apppasswords.`;
+    }
+
+    console.error(`[SMTP Mailer Error] Failed to send email to ${receipt.donor_email}:`, detailedError);
+
+    if (receipt.id && receipt.id > 0) {
+      await query(
+        `UPDATE receipts SET email_status = 'Failed', email_error = $1 WHERE id = $2`,
+        [detailedError, receipt.id]
+      );
+      await query(
+        `INSERT INTO dispatch_logs (receipt_id, channel, recipient, status, details) VALUES ($1, 'Email', $2, 'Failed', $3)`,
+        [receipt.id, receipt.donor_email, detailedError]
+      );
+    }
+    return { success: false, error: detailedError };
   }
 }
 
@@ -199,13 +217,14 @@ async function sendReceiptEmail(receipt, pdfBuffer) {
  * Validates SMTP configuration credentials.
  */
 async function verifySmtpConnection(customConfig) {
-  const host = customConfig.smtp_host || 'smtp.gmail.com';
-  const port = parseInt(customConfig.smtp_port || '587');
-  const user = customConfig.smtp_user;
-  const pass = customConfig.smtp_pass;
+  const host = customConfig.smtp_host || process.env.SMTP_HOST || 'smtp.gmail.com';
+  const port = parseInt(customConfig.smtp_port || process.env.SMTP_PORT || '587');
+  const user = (customConfig.smtp_user || process.env.SMTP_USER || '').trim();
+  const rawPass = (customConfig.smtp_pass || process.env.SMTP_PASS || '').trim();
+  const pass = rawPass.replace(/\s+/g, '');
 
   if (!user || !pass) {
-    throw new Error('SMTP Username (Email) and App Password are required');
+    throw new Error('SMTP Username (Email) and App Password are required to test connection');
   }
 
   const transporter = nodemailer.createTransport({
@@ -214,9 +233,22 @@ async function verifySmtpConnection(customConfig) {
     secure: port === 465,
     auth: { user, pass },
     tls: { rejectUnauthorized: false },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
   });
 
-  return await transporter.verify();
+  try {
+    return await transporter.verify();
+  } catch (error) {
+    let msg = error.message;
+    if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
+      msg = `Connection to ${host}:${port} timed out (${error.code || 'TIMEOUT'}). Render Free Tier blocks outbound SMTP ports 25, 465, and 587. To send emails on Render: switch to Brevo with Port 2525 (allowed on free tier) or upgrade Render web service to Starter ($7/mo).`;
+    } else if (error.message.includes('535') || error.message.includes('Username and Password not accepted')) {
+      msg = `Google SMTP rejected login credentials (535). You must use a 16-letter Google App Password generated at myaccount.google.com/apppasswords with 2-Step Verification enabled.`;
+    }
+    throw new Error(msg);
+  }
 }
 
 module.exports = {

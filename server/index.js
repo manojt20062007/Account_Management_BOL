@@ -94,9 +94,17 @@ app.get('/api/settings', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Settings not found' });
     }
     const settings = { ...result.rows[0] };
-    // Mask password in response for security, but indicate whether it is configured
-    settings.has_smtp_pass = Boolean(settings.smtp_pass);
-    settings.smtp_pass = settings.smtp_pass ? '••••••••' : '';
+    // Prioritize or fallback to environment variables from Render/hosting
+    settings.smtp_host = settings.smtp_host || process.env.SMTP_HOST || 'smtp.gmail.com';
+    settings.smtp_port = settings.smtp_port || parseInt(process.env.SMTP_PORT || '587');
+    settings.smtp_user = settings.smtp_user || process.env.SMTP_USER || '';
+    settings.smtp_from_name = settings.smtp_from_name || settings.trust_name || 'BRIDGE OF LOVE';
+    settings.smtp_from_email = settings.smtp_from_email || settings.smtp_user || process.env.SMTP_USER || '';
+
+    // Mask password in response for security, but indicate whether it is configured (DB or Env)
+    const effectivePass = settings.smtp_pass || process.env.SMTP_PASS || '';
+    settings.has_smtp_pass = Boolean(effectivePass);
+    settings.smtp_pass = settings.has_smtp_pass ? '••••••••' : '';
     res.json({ success: true, data: settings });
   } catch (err) {
     console.error('Error fetching settings:', err);
@@ -107,14 +115,12 @@ app.get('/api/settings', async (req, res) => {
 app.post('/api/settings', async (req, res) => {
   try {
     const s = req.body;
-    // Check if password was left masked, keep existing if so
-    let passClause = '';
     const params = [
       s.trust_name, s.tagline, s.reg_number, s.tax_exemption_80g, s.tax_exemption_12a,
       s.pan_number, s.address, s.contact_phone, s.email, s.website,
       s.currency_symbol, s.currency_code, s.signatory_name, s.signatory_title,
-      s.receipt_prefix, s.smtp_host, parseInt(s.smtp_port || 587),
-      Boolean(s.smtp_secure), s.smtp_user, s.smtp_from_name, s.smtp_from_email,
+      s.receipt_prefix, s.smtp_host || 'smtp.gmail.com', parseInt(s.smtp_port || 587),
+      Boolean(s.smtp_secure), (s.smtp_user || '').trim(), (s.smtp_from_name || '').trim(), (s.smtp_from_email || '').trim(),
     ];
 
     let updateQuery = `
@@ -127,8 +133,8 @@ app.post('/api/settings', async (req, res) => {
         smtp_from_name = $20, smtp_from_email = $21, updated_at = NOW()
     `;
 
-    if (s.smtp_pass && s.smtp_pass !== '••••••••') {
-      params.push(s.smtp_pass);
+    if (s.smtp_pass && s.smtp_pass !== '••••••••' && s.smtp_pass.trim() !== '') {
+      params.push(s.smtp_pass.trim().replace(/\s+/g, ''));
       updateQuery += `, smtp_pass = $${params.length}`;
     }
 
@@ -144,10 +150,14 @@ app.post('/api/settings', async (req, res) => {
 
 app.post('/api/settings/verify-smtp', async (req, res) => {
   try {
-    const config = req.body;
+    const config = { ...req.body };
     if (!config.smtp_pass || config.smtp_pass === '••••••••') {
       const dbSettings = await query('SELECT smtp_pass FROM trust_settings WHERE id = 1');
-      config.smtp_pass = dbSettings.rows[0]?.smtp_pass || '';
+      config.smtp_pass = dbSettings.rows[0]?.smtp_pass || process.env.SMTP_PASS || '';
+    }
+    if (!config.smtp_user) {
+      const dbSettings = await query('SELECT smtp_user FROM trust_settings WHERE id = 1');
+      config.smtp_user = dbSettings.rows[0]?.smtp_user || process.env.SMTP_USER || '';
     }
     await verifySmtpConnection(config);
     res.json({ success: true, message: 'SMTP credentials verified successfully! Emails can now be delivered.' });
@@ -189,11 +199,19 @@ app.post('/api/settings/test-email', async (req, res) => {
     const settingsRes = await query('SELECT * FROM trust_settings WHERE id = 1');
     const settings = settingsRes.rows[0] || {};
 
+    const now = new Date();
+    const currentISTTime = now.toLocaleTimeString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+
     const sampleReceipt = {
       id: 0,
       receipt_number: `${settings.receipt_prefix || 'TR/REC'}-TEST`,
-      receipt_date: new Date().toISOString(),
-      receipt_time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+      receipt_date: now.toISOString(),
+      receipt_time: currentISTTime,
       donor_name: 'Test Trust Member',
       donor_email: recipient_email,
       donor_phone: '+91 98765 00000',
@@ -384,19 +402,29 @@ app.post('/api/receipts', async (req, res) => {
       }
     }
 
-    // 4. Insert Receipt
+    // 4. Compute IST receipt time & Insert Receipt
+    const now = new Date();
+    const currentISTTime = now.toLocaleTimeString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+    const resolvedReceiptTime = req.body.receipt_time || currentISTTime;
+
     const receiptInsert = await query(`
       INSERT INTO receipts (
-        receipt_number, receipt_date, donor_id, donor_name, donor_pan,
+        receipt_number, receipt_date, receipt_time, donor_id, donor_name, donor_pan,
         donor_phone, donor_whatsapp, donor_email, donor_address,
         head_id, head_name, amount, amount_words, payment_mode,
         cheque_or_tx_ref, bank_name, notes, email_status
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
       ) RETURNING *
     `, [
       receiptNumber,
       receipt_date || new Date().toISOString().slice(0, 10),
+      resolvedReceiptTime,
       resolvedDonorId,
       donor_name.trim(),
       donor_pan ? donor_pan.trim().toUpperCase() : '',

@@ -184,7 +184,27 @@ function generateReceiptPdf(receipt, settings = {}) {
         month: '2-digit',
         year: 'numeric',
       });
-      const formattedTime = receipt.receipt_time || '10:30 AM';
+      let formattedTime = receipt.receipt_time;
+      if (!formattedTime && receipt.created_at) {
+        try {
+          formattedTime = new Date(receipt.created_at).toLocaleTimeString('en-IN', {
+            timeZone: 'Asia/Kolkata',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true,
+          });
+        } catch (e) {
+          formattedTime = null;
+        }
+      }
+      if (!formattedTime) {
+        formattedTime = new Date().toLocaleTimeString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+      }
 
       doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#0f172a');
       doc.text(receipt.receipt_number, tableX + 12, y + 7);

@@ -120,6 +120,7 @@ async function initDatabase() {
         id SERIAL PRIMARY KEY,
         receipt_number VARCHAR(100) NOT NULL UNIQUE,
         receipt_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        receipt_time VARCHAR(50),
         donor_id INT REFERENCES donors(id) ON DELETE SET NULL,
         donor_name VARCHAR(200) NOT NULL,
         donor_pan VARCHAR(50),
@@ -141,6 +142,18 @@ async function initDatabase() {
         emailed_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    // Ensure receipts table has receipt_time column on existing databases
+    await client.query(`
+      ALTER TABLE receipts ADD COLUMN IF NOT EXISTS receipt_time VARCHAR(50);
+    `);
+
+    // Update existing receipts with null or 10:30 AM receipt_time to their creation time in IST
+    await client.query(`
+      UPDATE receipts 
+      SET receipt_time = TO_CHAR(created_at AT TIME ZONE 'Asia/Kolkata', 'HH12:MI AM')
+      WHERE receipt_time IS NULL OR receipt_time = '10:30 AM';
     `);
 
     // 5. Audit / Dispatch Logs Table
