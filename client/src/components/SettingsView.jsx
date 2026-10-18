@@ -4,6 +4,7 @@ import {
   Server, Save, Eye, EyeOff, RotateCcw, Upload, FileText, Check, 
   Sparkles, Send, MapPin, Phone, Building2, RefreshCw
 } from 'lucide-react';
+import { API_BASE } from '../config/api';
 
 export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, onLiveChange }) {
   const [formData, setFormData] = useState({ ...settings });
@@ -127,7 +128,7 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
     setSendingTestEmail(true);
     setTestEmailStatus(null);
     try {
-      const res = await fetch('http://localhost:5000/api/settings/test-email', {
+      const res = await fetch(`${API_BASE}/settings/test-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ recipient_email: testEmailAddress }),
@@ -163,7 +164,7 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
       setLogoStatus(null);
 
       try {
-        const res = await fetch('http://localhost:5000/api/settings/upload-logo', {
+        const res = await fetch(`${API_BASE}/settings/upload-logo`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ imageBase64: base64String }),

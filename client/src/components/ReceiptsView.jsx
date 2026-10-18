@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE } from '../config/api';
 import { 
   Search, 
   Filter, 
@@ -227,7 +228,7 @@ export default function ReceiptsView({
 
                         {/* Single Vector PDF Download */}
                         <a
-                          href={`http://localhost:5000/api/receipts/${r.id}/pdf`}
+                          href={`${API_BASE}/receipts/${r.id}/pdf`}
                           target="_blank"
                           rel="noreferrer"
                           className="btn btn-outline btn-icon"

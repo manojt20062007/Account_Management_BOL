@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, Printer, FileDown, MessageCircle, Target, Users } from 'lucide-react';
+import { API_BASE } from '../config/api';
 
 export default function ViewReceiptModal({ receipt, settings, isOpen, onClose, onShareWhatsApp }) {
   if (!isOpen || !receipt) return null;
@@ -35,7 +36,7 @@ export default function ViewReceiptModal({ receipt, settings, isOpen, onClose, o
               <span className="btn-text-desktop">WhatsApp</span>
             </button>
             <a
-              href={`http://localhost:5000/api/receipts/${receipt.id}/pdf`}
+              href={`${API_BASE}/receipts/${receipt.id}/pdf`}
               target="_blank"
               rel="noreferrer"
               className="btn btn-primary btn-sm"
