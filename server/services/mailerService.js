@@ -149,7 +149,7 @@ async function sendReceiptEmail(receipt, pdfBuffer) {
           <div class="footer">
             <div class="contact-line"><strong>${settings.trust_name}</strong></div>
             <div class="contact-line">${settings.address || ''}</div>
-            <div class="contact-line">Phone: ${settings.contact_phone || ''} | Email: ${settings.email || ''}</div>
+            
             <div class="contact-line" style="margin-top:8px; color:#94a3b8; font-size:11px;">This is a system generated official receipt.</div>
           </div>
         </div>
