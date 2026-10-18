@@ -1,0 +1,195 @@
+const { Pool } = require('pg');
+require('dotenv').config();
+
+const pool = new Pool({
+  host: process.env.DB_HOST || '127.0.0.1',
+  port: parseInt(process.env.DB_PORT || '5433'),
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || '',
+  database: process.env.DB_NAME || 'trust_account_db',
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 4000,
+});
+
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle PostgreSQL client:', err);
+});
+
+async function initDatabase() {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // 1. Trust Settings / Profile Table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS trust_settings (
+        id SERIAL PRIMARY KEY,
+        trust_name VARCHAR(255) NOT NULL DEFAULT 'SRI SARADA SEVA CHARITABLE TRUST',
+        tagline VARCHAR(255) DEFAULT 'Dedicated to Social Upliftment, Education & Healthcare',
+        reg_number VARCHAR(100) DEFAULT 'TR/BK-IV/452/2012',
+        tax_exemption_80g VARCHAR(100) DEFAULT 'CIT(E)/BLR/80G/2021-22/AABTS1234F',
+        tax_exemption_12a VARCHAR(100) DEFAULT 'CIT(E)/12AA/2013-14/1042',
+        pan_number VARCHAR(50) DEFAULT 'AABTS1234F',
+        address TEXT DEFAULT '#42, Temple Road, Gandhi Nagar, Bengaluru, Karnataka - 560009',
+        contact_phone VARCHAR(50) DEFAULT '+91 98765 43210',
+        email VARCHAR(100) DEFAULT 'info@saradatrust.org',
+        website VARCHAR(100) DEFAULT 'www.saradatrust.org',
+        currency_symbol VARCHAR(10) DEFAULT '₹',
+        currency_code VARCHAR(10) DEFAULT 'INR',
+        signatory_name VARCHAR(100) DEFAULT 'Sri M. R. Sharma',
+        signatory_title VARCHAR(100) DEFAULT 'Managing Trustee',
+        receipt_prefix VARCHAR(20) DEFAULT 'TRUST/REC',
+        next_receipt_number INT DEFAULT 1001,
+        smtp_host VARCHAR(100) DEFAULT 'smtp.gmail.com',
+        smtp_port INT DEFAULT 587,
+        smtp_secure BOOLEAN DEFAULT false,
+        smtp_user VARCHAR(100) DEFAULT '',
+        smtp_pass VARCHAR(100) DEFAULT '',
+        smtp_from_name VARCHAR(100) DEFAULT 'Sri Sarada Seva Charitable Trust',
+        smtp_from_email VARCHAR(100) DEFAULT '',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Ensure initial row exists
+    const resSettings = await client.query('SELECT COUNT(*) FROM trust_settings');
+    if (parseInt(resSettings.rows[0].count) === 0) {
+      await client.query(`
+        INSERT INTO trust_settings (id) VALUES (1);
+      `);
+    }
+
+    // 2. Account Heads Table (Categories of funds/accounts)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS account_heads (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(150) NOT NULL UNIQUE,
+        code VARCHAR(50) UNIQUE,
+        description TEXT,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Populate standard trust account heads if empty
+    const resHeads = await client.query('SELECT COUNT(*) FROM account_heads');
+    if (parseInt(resHeads.rows[0].count) === 0) {
+      await client.query(`
+        INSERT INTO account_heads (name, code, description) VALUES
+          ('Corpus Fund (Earmarked Capital)', 'CORPUS', 'Long-term corpus donation towards trust capital fund (exempt under Section 11(1)(d))'),
+          ('General Relief & Welfare Fund', 'GENERAL', 'Unrestricted donations for public charitable activities and operations'),
+          ('Annadanam & Food Distribution', 'ANNADANAM', 'Daily and festive mass meal distribution and hunger relief'),
+          ('Healthcare & Free Medical Camps', 'MEDICAL', 'Medical aid, medicines distribution, and free diagnostics for underprivileged'),
+          ('Education & Student Aid', 'EDUCATION', 'Scholarships, school fees, books, and uniforms for needy students'),
+          ('Building & Infrastructure Fund', 'BUILDING', 'Development, maintenance, and expansion of trust community center'),
+          ('Special Puja & Festival Offerings', 'FESTIVAL', 'Religious, spiritual, and community welfare events');
+      `);
+    }
+
+    // 3. Donors / Benefactors Table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS donors (
+        id SERIAL PRIMARY KEY,
+        full_name VARCHAR(200) NOT NULL,
+        pan_or_id VARCHAR(50),
+        phone VARCHAR(50),
+        whatsapp VARCHAR(50),
+        email VARCHAR(100),
+        address TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // 4. Receipts Table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS receipts (
+        id SERIAL PRIMARY KEY,
+        receipt_number VARCHAR(100) NOT NULL UNIQUE,
+        receipt_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        donor_id INT REFERENCES donors(id) ON DELETE SET NULL,
+        donor_name VARCHAR(200) NOT NULL,
+        donor_pan VARCHAR(50),
+        donor_phone VARCHAR(50),
+        donor_whatsapp VARCHAR(50),
+        donor_email VARCHAR(100),
+        donor_address TEXT,
+        head_id INT REFERENCES account_heads(id) ON DELETE SET NULL,
+        head_name VARCHAR(150) NOT NULL,
+        amount NUMERIC(12, 2) NOT NULL,
+        amount_words TEXT NOT NULL,
+        payment_mode VARCHAR(50) NOT NULL, -- 'Cash', 'UPI', 'Cheque', 'Bank Transfer (NEFT/RTGS)', 'Online'
+        cheque_or_tx_ref VARCHAR(100),
+        bank_name VARCHAR(100),
+        is_80g_claimed BOOLEAN DEFAULT true,
+        notes TEXT,
+        email_status VARCHAR(50) DEFAULT 'Pending', -- 'Pending', 'Sent', 'Failed', 'Skipped'
+        email_error TEXT,
+        emailed_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // 5. Audit / Dispatch Logs Table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS dispatch_logs (
+        id SERIAL PRIMARY KEY,
+        receipt_id INT REFERENCES receipts(id) ON DELETE CASCADE,
+        channel VARCHAR(50) NOT NULL, -- 'Email', 'WhatsApp'
+        recipient VARCHAR(150) NOT NULL,
+        status VARCHAR(50) NOT NULL, -- 'Sent', 'Failed', 'Initiated'
+        details TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Check if sample donor & receipt exists, if not create realistic initial demo data
+    const resCount = await client.query('SELECT COUNT(*) FROM receipts');
+    if (parseInt(resCount.rows[0].count) === 0) {
+      // Seed initial donors
+      const d1 = await client.query(`
+        INSERT INTO donors (full_name, pan_or_id, phone, whatsapp, email, address)
+        VALUES 
+          ('Dr. Anand V. Kulkarni', 'ABCDE1234F', '+91 94481 23456', '919448123456', 'anand.kulkarni@example.com', '#108, 4th Cross, Malleshwaram, Bengaluru 560003'),
+          ('Smt. Meenakshi Sundaram', 'BPXPS5678K', '+91 98860 98765', '919886098765', 'meenakshi.s@example.com', 'Flat 302, Sai Residency, Indiranagar, Bengaluru 560038'),
+          ('Rajesh & Vandana Mehta', 'AAACM4321R', '+91 97412 55443', '919741255443', 'rajesh.mehta@example.com', '#22, Brigade Road, Ashok Nagar, Bengaluru 560025')
+        RETURNING id;
+      `);
+
+      const donorId1 = d1.rows[0].id;
+      const donorId2 = d1.rows[1].id;
+      const donorId3 = d1.rows[2].id;
+
+      // Seed initial receipts
+      await client.query(`
+        INSERT INTO receipts (
+          receipt_number, receipt_date, donor_id, donor_name, donor_pan, donor_phone, donor_whatsapp, donor_email, donor_address,
+          head_id, head_name, amount, amount_words, payment_mode, cheque_or_tx_ref, bank_name, email_status
+        ) VALUES 
+          ('TR/2026-27/0001', CURRENT_DATE - INTERVAL '5 days', ${donorId1}, 'Dr. Anand V. Kulkarni', 'ABCDE1234F', '+91 94481 23456', '919448123456', 'anand.kulkarni@example.com', '#108, 4th Cross, Malleshwaram, Bengaluru 560003', 1, 'Corpus Fund (Earmarked Capital)', 25000.00, 'Rupees Twenty Five Thousand Only', 'Bank Transfer (NEFT/RTGS)', 'UTR-NEFT982341238', 'State Bank of India', 'Sent'),
+          ('TR/2026-27/0002', CURRENT_DATE - INTERVAL '3 days', ${donorId2}, 'Smt. Meenakshi Sundaram', 'BPXPS5678K', '+91 98860 98765', '919886098765', 'meenakshi.s@example.com', 'Flat 302, Sai Residency, Indiranagar, Bengaluru 560038', 3, 'Annadanam & Food Distribution', 5000.00, 'Rupees Five Thousand Only', 'UPI', 'UPI/261016/542198', 'GooglePay / HDFC Bank', 'Sent'),
+          ('TR/2026-27/0003', CURRENT_DATE - INTERVAL '1 days', ${donorId3}, 'Rajesh & Vandana Mehta', 'AAACM4321R', '+91 97412 55443', '919741255443', 'rajesh.mehta@example.com', '#22, Brigade Road, Ashok Nagar, Bengaluru 560025', 5, 'Education & Student Aid', 15000.00, 'Rupees Fifteen Thousand Only', 'Cheque', 'CHQ #004512', 'ICICI Bank', 'Sent');
+      `);
+
+      // Update next receipt number
+      await client.query(`UPDATE trust_settings SET next_receipt_number = 1004 WHERE id = 1;`);
+    }
+
+    await client.query('COMMIT');
+    console.log('PostgreSQL Database tables and schema verified successfully.');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error initializing PostgreSQL database:', err);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = {
+  pool,
+  query: (text, params) => pool.query(text, params),
+  initDatabase,
+};
