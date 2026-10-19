@@ -210,16 +210,41 @@ async function initDatabase() {
       const donorId2 = d1.rows[1].id;
       const donorId3 = d1.rows[2].id;
 
-      // Seed initial receipts
+      // Dynamically fetch existing, valid account heads to avoid foreign key violations
+      let headsRes = await client.query('SELECT id, name FROM account_heads ORDER BY id ASC');
+      if (headsRes.rows.length === 0) {
+        const seededHeads = await client.query(`
+          INSERT INTO account_heads (name, code, description) VALUES
+            ('Corpus Fund (Earmarked Capital)', 'CORPUS', 'Long-term corpus donation towards trust capital fund (exempt under Section 11(1)(d))'),
+            ('General Relief & Welfare Fund', 'GENERAL', 'Unrestricted donations for public charitable activities and operations'),
+            ('Annadanam & Food Distribution', 'ANNADANAM', 'Daily and festive mass meal distribution and hunger relief'),
+            ('Healthcare & Free Medical Camps', 'MEDICAL', 'Medical aid, medicines distribution, and free diagnostics for underprivileged'),
+            ('Education & Student Aid', 'EDUCATION', 'Scholarships, school fees, books, and uniforms for needy students'),
+            ('Building & Infrastructure Fund', 'BUILDING', 'Development, maintenance, and expansion of trust community center'),
+            ('Special Puja & Festival Offerings', 'FESTIVAL', 'Religious, spiritual, and community welfare events')
+          RETURNING id, name;
+        `);
+        headsRes = seededHeads;
+      }
+
+      const h1 = headsRes.rows[0];
+      const h2 = headsRes.rows[1] || h1;
+      const h3 = headsRes.rows[2] || h1;
+
+      // Seed initial receipts with dynamically verified head IDs
       await client.query(`
         INSERT INTO receipts (
           receipt_number, receipt_date, donor_id, donor_name, donor_pan, donor_phone, donor_whatsapp, donor_email, donor_address,
           head_id, head_name, amount, amount_words, payment_mode, cheque_or_tx_ref, bank_name, email_status
         ) VALUES 
-          ('TR/2026-27/0001', CURRENT_DATE - INTERVAL '5 days', ${donorId1}, 'Dr. Anand V. Kulkarni', 'ABCDE1234F', '+91 94481 23456', '919448123456', 'anand.kulkarni@example.com', '#108, 4th Cross, Malleshwaram, Bengaluru 560003', 1, 'Corpus Fund (Earmarked Capital)', 25000.00, 'Rupees Twenty Five Thousand Only', 'Bank Transfer (NEFT/RTGS)', 'UTR-NEFT982341238', 'State Bank of India', 'Sent'),
-          ('TR/2026-27/0002', CURRENT_DATE - INTERVAL '3 days', ${donorId2}, 'Smt. Meenakshi Sundaram', 'BPXPS5678K', '+91 98860 98765', '919886098765', 'meenakshi.s@example.com', 'Flat 302, Sai Residency, Indiranagar, Bengaluru 560038', 3, 'Annadanam & Food Distribution', 5000.00, 'Rupees Five Thousand Only', 'UPI', 'UPI/261016/542198', 'GooglePay / HDFC Bank', 'Sent'),
-          ('TR/2026-27/0003', CURRENT_DATE - INTERVAL '1 days', ${donorId3}, 'Rajesh & Vandana Mehta', 'AAACM4321R', '+91 97412 55443', '919741255443', 'rajesh.mehta@example.com', '#22, Brigade Road, Ashok Nagar, Bengaluru 560025', 5, 'Education & Student Aid', 15000.00, 'Rupees Fifteen Thousand Only', 'Cheque', 'CHQ #004512', 'ICICI Bank', 'Sent');
-      `);
+          ($1, CURRENT_DATE - INTERVAL '5 days', $2, 'Dr. Anand V. Kulkarni', 'ABCDE1234F', '+91 94481 23456', '919448123456', 'anand.kulkarni@example.com', '#108, 4th Cross, Malleshwaram, Bengaluru 560003', $3, $4, 25000.00, 'Rupees Twenty Five Thousand Only', 'Bank Transfer (NEFT/RTGS)', 'UTR-NEFT982341238', 'State Bank of India', 'Sent'),
+          ($5, CURRENT_DATE - INTERVAL '3 days', $6, 'Smt. Meenakshi Sundaram', 'BPXPS5678K', '+91 98860 98765', '919886098765', 'meenakshi.s@example.com', 'Flat 302, Sai Residency, Indiranagar, Bengaluru 560038', $7, $8, 5000.00, 'Rupees Five Thousand Only', 'UPI', 'UPI/261016/542198', 'GooglePay / HDFC Bank', 'Sent'),
+          ($9, CURRENT_DATE - INTERVAL '1 days', $10, 'Rajesh & Vandana Mehta', 'AAACM4321R', '+91 97412 55443', '919741255443', 'rajesh.mehta@example.com', '#22, Brigade Road, Ashok Nagar, Bengaluru 560025', $11, $12, 15000.00, 'Rupees Fifteen Thousand Only', 'Cheque', 'CHQ #004512', 'ICICI Bank', 'Sent');
+      `, [
+        'TR/2026-27/0001', donorId1, h1.id, h1.name,
+        'TR/2026-27/0002', donorId2, h2.id, h2.name,
+        'TR/2026-27/0003', donorId3, h3.id, h3.name,
+      ]);
 
       // Update next receipt number
       await client.query(`UPDATE trust_settings SET next_receipt_number = 1004 WHERE id = 1;`);
