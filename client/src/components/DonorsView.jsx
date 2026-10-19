@@ -92,7 +92,14 @@ export default function DonorsView({ donors, settings, onAddDonor }) {
                 filtered.map((d) => (
                   <tr key={d.id}>
                     <td>
-                      <div style={{ fontWeight: 600, color: '#0f172a' }}>{d.full_name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ fontWeight: 600, color: '#0f172a' }}>{d.full_name}</div>
+                        {d.is_registered && (
+                          <span style={{ fontSize: '10.5px', background: '#ecfdf5', color: '#059669', padding: '2px 6px', borderRadius: '4px', fontWeight: 700, border: '1px solid #a7f3d0' }} title="Signed up with portal account">
+                            ✓ Portal User
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td>
                       {d.pan_or_id ? (

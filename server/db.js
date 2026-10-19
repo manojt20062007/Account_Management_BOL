@@ -1,4 +1,5 @@
 const { Pool } = require('pg');
+const { hashPassword } = require('./utils/auth');
 require('dotenv').config();
 
 const poolConfig = process.env.DATABASE_URL
@@ -169,6 +170,29 @@ async function initDatabase() {
       );
     `);
 
+    // 6. Users / Accounts Table (Donors & Admins)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        full_name VARCHAR(200) NOT NULL,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        phone VARCHAR(50),
+        whatsapp VARCHAR(50),
+        address TEXT,
+        pan_or_id VARCHAR(50),
+        password_hash VARCHAR(255) NOT NULL,
+        password_salt VARCHAR(100) NOT NULL,
+        role VARCHAR(50) DEFAULT 'donor', -- 'donor' or 'admin'
+        donor_id INT REFERENCES donors(id) ON DELETE SET NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    await client.query(`
+      ALTER TABLE donors ADD COLUMN IF NOT EXISTS user_id INT;
+    `);
+
     // Check if sample donor & receipt exists, if not create realistic initial demo data
     const resCount = await client.query('SELECT COUNT(*) FROM receipts');
     if (parseInt(resCount.rows[0].count) === 0) {
@@ -199,6 +223,33 @@ async function initDatabase() {
 
       // Update next receipt number
       await client.query(`UPDATE trust_settings SET next_receipt_number = 1004 WHERE id = 1;`);
+    }
+
+    // Ensure default Admin user exists
+    const adminCheck = await client.query("SELECT id FROM users WHERE role = 'admin' LIMIT 1");
+    if (adminCheck.rows.length === 0) {
+      const { hash, salt } = hashPassword('admin123');
+      await client.query(`
+        INSERT INTO users (full_name, email, phone, role, password_hash, password_salt)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (email) DO NOTHING
+      `, ['Bridge of Love Admin', 'admin@bridgeoflove.org', '+91 94441 00000', 'admin', hash, salt]);
+    }
+
+    // Ensure demo registered member exists for testing
+    const memberCheck = await client.query("SELECT id FROM users WHERE email = 'anand.kulkarni@example.com'");
+    if (memberCheck.rows.length === 0) {
+      const donorRes = await client.query("SELECT id, full_name, phone, whatsapp, email, address, pan_or_id FROM donors WHERE email = 'anand.kulkarni@example.com' LIMIT 1");
+      if (donorRes.rows.length > 0) {
+        const d = donorRes.rows[0];
+        const { hash, salt } = hashPassword('member123');
+        const newUser = await client.query(`
+          INSERT INTO users (full_name, email, phone, whatsapp, address, pan_or_id, role, donor_id, password_hash, password_salt)
+          VALUES ($1, $2, $3, $4, $5, $6, 'donor', $7, $8, $9)
+          RETURNING id
+        `, [d.full_name, d.email, d.phone, d.whatsapp, d.address, d.pan_or_id, d.id, hash, salt]);
+        await client.query('UPDATE donors SET user_id = $1 WHERE id = $2', [newUser.rows[0].id, d.id]);
+      }
     }
 
     await client.query('COMMIT');
