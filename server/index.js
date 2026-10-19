@@ -92,29 +92,26 @@ app.post('/api/auth/signup', async (req, res) => {
 
     // Link or create matching entry in donors table
     let donorId = null;
-    let existingDonor = null;
-    if (cleanEmail) {
-      existingDonor = await query(
-        `SELECT id FROM donors 
-         WHERE phone = $1 
-            OR (phone IS NOT NULL AND $2 != '' AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 10) = $2)
-            OR (email IS NOT NULL AND LOWER(email) = $3) 
-         LIMIT 1`,
-        [cleanPhone, phoneNormalized, cleanEmail]
-      );
-    } else {
-      existingDonor = await query(
-        `SELECT id FROM donors 
-         WHERE phone = $1 
-            OR whatsapp = $1 
-            OR (phone IS NOT NULL AND $2 != '' AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 10) = $2) 
-         LIMIT 1`,
-        [cleanPhone, phoneNormalized]
-      );
-    }
+    let existingDonor = await query(
+      `SELECT id, email, full_name, phone, whatsapp, address, pan_or_id FROM donors 
+       WHERE (phone IS NOT NULL AND $1 != '' AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 10) = $1)
+          OR (whatsapp IS NOT NULL AND $1 != '' AND RIGHT(REGEXP_REPLACE(whatsapp, '[^0-9]', '', 'g'), 10) = $1)
+          OR (phone = $2 AND $2 != '')
+          OR (whatsapp = $2 AND $2 != '')
+          OR ($3 IS NOT NULL AND $3 != '' AND email IS NOT NULL AND LOWER(email) = $3)
+          OR ($1 != '' AND LOWER(full_name) = LOWER($4))
+       ORDER BY (phone IS NOT NULL AND $1 != '' AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 10) = $1) DESC, id ASC
+       LIMIT 1`,
+      [phoneNormalized, cleanPhone, cleanEmail, cleanName]
+    );
 
+    let resolvedEmail = cleanEmail;
     if (existingDonor.rows.length > 0) {
-      donorId = existingDonor.rows[0].id;
+      const d = existingDonor.rows[0];
+      donorId = d.id;
+      if (!resolvedEmail && d.email) {
+        resolvedEmail = d.email;
+      }
       await query(`
         UPDATE donors 
         SET full_name = $1, 
@@ -122,10 +119,10 @@ app.post('/api/auth/signup', async (req, res) => {
             whatsapp = COALESCE(NULLIF($3, ''), whatsapp), 
             address = COALESCE(NULLIF($4, ''), address), 
             pan_or_id = COALESCE(NULLIF($5, ''), pan_or_id),
-            email = COALESCE($6, email),
+            email = COALESCE(NULLIF($6, ''), email),
             updated_at = CURRENT_TIMESTAMP
         WHERE id = $7
-      `, [cleanName, cleanPhone, whatsapp.trim() || cleanPhone, address.trim(), pan_or_id.trim().toUpperCase(), cleanEmail, donorId]);
+      `, [cleanName, cleanPhone, whatsapp.trim() || cleanPhone, address.trim(), pan_or_id.trim().toUpperCase(), resolvedEmail, donorId]);
     } else {
       const newDonor = await query(`
         INSERT INTO donors (full_name, email, phone, whatsapp, address, pan_or_id)
@@ -141,7 +138,7 @@ app.post('/api/auth/signup', async (req, res) => {
       INSERT INTO users (full_name, email, phone, whatsapp, address, pan_or_id, role, donor_id, password_hash, password_salt)
       VALUES ($1, $2, $3, $4, $5, $6, 'donor', $7, $8, $9)
       RETURNING id, full_name, email, phone, whatsapp, address, pan_or_id, role, donor_id, created_at
-    `, [cleanName, cleanEmail, cleanPhone, whatsapp.trim() || cleanPhone, address.trim(), pan_or_id.trim().toUpperCase(), donorId, hash, salt]);
+    `, [cleanName, resolvedEmail, cleanPhone, whatsapp.trim() || cleanPhone, address.trim(), pan_or_id.trim().toUpperCase(), donorId, hash, salt]);
 
     const user = insertUser.rows[0];
     await query('UPDATE donors SET user_id = $1 WHERE id = $2', [user.id, donorId]);
@@ -241,19 +238,77 @@ app.get('/api/user/portal', authenticateToken, async (req, res) => {
     if (userRes.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
-    const user = userRes.rows[0];
+    let user = userRes.rows[0];
     const userPhoneDigits = (user.phone || '').replace(/[^0-9]/g, '');
     const phoneNormalized = userPhoneDigits.length >= 10 ? userPhoneDigits.slice(-10) : userPhoneDigits;
+    const cleanEmail = user.email ? user.email.trim().toLowerCase() : '';
 
-    // Find all receipts matching this member by donor_id, phone, or email
+    // Auto-link existing donor record(s) by matching phone, whatsapp, or email
+    try {
+      if (phoneNormalized || cleanEmail) {
+        // Link any matching donors to this user_id
+        await query(`
+          UPDATE donors 
+          SET user_id = $1 
+          WHERE (user_id IS NULL OR user_id = $1)
+            AND (
+              ($2 != '' AND phone IS NOT NULL AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 10) = $2)
+              OR ($2 != '' AND whatsapp IS NOT NULL AND RIGHT(REGEXP_REPLACE(whatsapp, '[^0-9]', '', 'g'), 10) = $2)
+              OR ($3 != '' AND email IS NOT NULL AND LOWER(email) = $3)
+            )
+        `, [user.id, phoneNormalized, cleanEmail]);
+
+        // Find best matched donor with existing receipts or details
+        const matchedDonor = await query(`
+          SELECT d.id, d.email, d.phone, d.whatsapp, d.address, d.pan_or_id
+          FROM donors d
+          LEFT JOIN receipts r ON r.donor_id = d.id
+          WHERE d.user_id = $1 
+             OR ($2 != '' AND d.phone IS NOT NULL AND RIGHT(REGEXP_REPLACE(d.phone, '[^0-9]', '', 'g'), 10) = $2)
+             OR ($2 != '' AND d.whatsapp IS NOT NULL AND RIGHT(REGEXP_REPLACE(d.whatsapp, '[^0-9]', '', 'g'), 10) = $2)
+             OR ($3 != '' AND d.email IS NOT NULL AND LOWER(d.email) = $3)
+          ORDER BY (r.id IS NOT NULL) DESC, d.id ASC
+          LIMIT 1
+        `, [user.id, phoneNormalized, cleanEmail]);
+
+        if (matchedDonor.rows.length > 0) {
+          const d = matchedDonor.rows[0];
+          if (!user.donor_id || user.donor_id !== d.id) {
+            await query('UPDATE users SET donor_id = $1 WHERE id = $2', [d.id, user.id]);
+            user.donor_id = d.id;
+          }
+          if (!user.email && d.email) {
+            await query('UPDATE users SET email = $1 WHERE id = $2', [d.email, user.id]);
+            user.email = d.email;
+          }
+        }
+      }
+    } catch (linkErr) {
+      console.warn('Auto-link donor warning in portal:', linkErr);
+    }
+
+    // Find all receipts matching this member by:
+    // 1. donor_id matching user's linked donor
+    // 2. donor_id linked to any donor having user_id = user.id
+    // 3. receipt's donor_phone or donor_whatsapp matching user's phone (normalized 10 digits)
+    // 4. receipt's donor_email matching user's email
+    // 5. donor's phone or whatsapp in donors matching user's phone
     const receiptsRes = await query(`
-      SELECT * FROM receipts 
-      WHERE (donor_id IS NOT NULL AND donor_id = $1)
-         OR (donor_phone = $2 AND $2 != '')
-         OR (donor_phone IS NOT NULL AND $3 != '' AND RIGHT(REGEXP_REPLACE(donor_phone, '[^0-9]', '', 'g'), 10) = $3)
-         OR (donor_email IS NOT NULL AND $4 IS NOT NULL AND LOWER(donor_email) = LOWER($4) AND $4 != '')
-      ORDER BY receipt_date DESC, id DESC
-    `, [user.donor_id, user.phone || '', phoneNormalized, user.email || null]);
+      SELECT DISTINCT r.* 
+      FROM receipts r
+      LEFT JOIN donors d ON d.id = r.donor_id
+      WHERE (r.donor_id IS NOT NULL AND $1::int IS NOT NULL AND r.donor_id = $1)
+         OR (d.user_id IS NOT NULL AND d.user_id = $2)
+         OR (r.donor_phone = $3 AND $3 != '')
+         OR (r.donor_whatsapp = $3 AND $3 != '')
+         OR (r.donor_phone IS NOT NULL AND $4 != '' AND RIGHT(REGEXP_REPLACE(r.donor_phone, '[^0-9]', '', 'g'), 10) = $4)
+         OR (r.donor_whatsapp IS NOT NULL AND $4 != '' AND RIGHT(REGEXP_REPLACE(r.donor_whatsapp, '[^0-9]', '', 'g'), 10) = $4)
+         OR (d.phone IS NOT NULL AND $4 != '' AND RIGHT(REGEXP_REPLACE(d.phone, '[^0-9]', '', 'g'), 10) = $4)
+         OR (d.whatsapp IS NOT NULL AND $4 != '' AND RIGHT(REGEXP_REPLACE(d.whatsapp, '[^0-9]', '', 'g'), 10) = $4)
+         OR (r.donor_email IS NOT NULL AND $5 IS NOT NULL AND $5 != '' AND LOWER(r.donor_email) = LOWER($5))
+         OR (d.email IS NOT NULL AND $5 IS NOT NULL AND $5 != '' AND LOWER(d.email) = LOWER($5))
+      ORDER BY r.receipt_date DESC, r.id DESC
+    `, [user.donor_id, user.id, user.phone || '', phoneNormalized, user.email || null]);
 
     const receipts = receiptsRes.rows;
 
@@ -741,13 +796,37 @@ app.post('/api/receipts', async (req, res) => {
     // 3. Resolve or create donor
     let resolvedDonorId = donor_id ? parseInt(donor_id) : null;
     if (!resolvedDonorId && donor_name) {
-      const donorCheck = await query('SELECT id FROM donors WHERE LOWER(full_name) = LOWER($1) LIMIT 1', [donor_name.trim()]);
+      const cleanPhoneDigits = (donor_phone || donor_whatsapp || '').replace(/[^0-9]/g, '');
+      const phoneNorm = cleanPhoneDigits.length >= 10 ? cleanPhoneDigits.slice(-10) : cleanPhoneDigits;
+      const cleanEmail = donor_email ? donor_email.trim().toLowerCase() : '';
+
+      const donorCheck = await query(`
+        SELECT id FROM donors 
+        WHERE (phone IS NOT NULL AND $1 != '' AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 10) = $1)
+           OR (whatsapp IS NOT NULL AND $1 != '' AND RIGHT(REGEXP_REPLACE(whatsapp, '[^0-9]', '', 'g'), 10) = $1)
+           OR ($2 != '' AND email IS NOT NULL AND LOWER(email) = $2)
+           OR LOWER(full_name) = LOWER($3)
+        ORDER BY (phone IS NOT NULL AND $1 != '' AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 10) = $1) DESC, id ASC
+        LIMIT 1
+      `, [phoneNorm, cleanEmail, donor_name.trim()]);
+
       if (donorCheck.rows.length > 0) {
         resolvedDonorId = donorCheck.rows[0].id;
+        // Keep donor contact updated
+        await query(`
+          UPDATE donors 
+          SET phone = COALESCE(NULLIF($1, ''), phone),
+              whatsapp = COALESCE(NULLIF($2, ''), whatsapp),
+              email = COALESCE(NULLIF($3, ''), email),
+              address = COALESCE(NULLIF($4, ''), address),
+              pan_or_id = COALESCE(NULLIF($5, ''), pan_or_id),
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = $6
+        `, [donor_phone || '', donor_whatsapp || '', donor_email || '', donor_address || '', donor_pan ? donor_pan.trim().toUpperCase() : '', resolvedDonorId]);
       } else {
         const newDonor = await query(
           `INSERT INTO donors (full_name, pan_or_id, phone, whatsapp, email, address) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-          [donor_name.trim(), donor_pan || '', donor_phone || '', donor_whatsapp || '', donor_email || '', donor_address || '']
+          [donor_name.trim(), donor_pan ? donor_pan.trim().toUpperCase() : '', donor_phone || '', donor_whatsapp || '', donor_email || '', donor_address || '']
         );
         resolvedDonorId = newDonor.rows[0].id;
       }
