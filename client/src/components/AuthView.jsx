@@ -9,13 +9,13 @@ export default function AuthView({ onAuthSuccess, settings }) {
   const [error, setError] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
 
-  // Sign In State
+  // Sign In State (Phone number is primary, email also supported)
   const [signInData, setSignInData] = useState({
-    email: '',
+    identifier: '',
     password: '',
   });
 
-  // Sign Up State (Personal Information - No OTP required)
+  // Sign Up State (Personal Information - Mobile phone primary, email optional)
   const [signUpData, setSignUpData] = useState({
     full_name: '',
     email: '',
@@ -29,7 +29,7 @@ export default function AuthView({ onAuthSuccess, settings }) {
   const trustName = settings?.trust_name || 'BRIDGE OF LOVE';
   const tagline = settings?.tagline || 'Dedicated to Social Upliftment, Education & Healthcare';
 
-  // Handle Member / Admin Login
+  // Handle Member Login using Phone Number or Email
   const handleLogin = async (e) => {
     if (e) e.preventDefault();
     setError(null);
@@ -39,7 +39,12 @@ export default function AuthView({ onAuthSuccess, settings }) {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(signInData),
+        body: JSON.stringify({
+          identifier: signInData.identifier.trim(),
+          email: signInData.identifier.trim(),
+          phone: signInData.identifier.trim(),
+          password: signInData.password,
+        }),
       });
 
       const data = await res.json();
@@ -66,8 +71,8 @@ export default function AuthView({ onAuthSuccess, settings }) {
       setLoading(false);
       return;
     }
-    if (!signUpData.email.trim()) {
-      setError('Please provide your email address');
+    if (!signUpData.phone.trim()) {
+      setError('Please provide your mobile phone number (used to login)');
       setLoading(false);
       return;
     }
@@ -76,8 +81,8 @@ export default function AuthView({ onAuthSuccess, settings }) {
       setLoading(false);
       return;
     }
-    if (!signUpData.phone.trim()) {
-      setError('Please provide your phone / WhatsApp number for receipt dispatch');
+    if (signUpData.email && signUpData.email.trim() && !signUpData.email.includes('@')) {
+      setError('Please provide a valid email address or leave it blank');
       setLoading(false);
       return;
     }
@@ -113,7 +118,7 @@ export default function AuthView({ onAuthSuccess, settings }) {
   // Quick Demo Auto-filler for member
   const fillDemoMember = () => {
     setSignInData({
-      email: 'anand.kulkarni@example.com',
+      identifier: '9448123456',
       password: 'member123',
     });
     setTab('signin');
@@ -312,16 +317,16 @@ export default function AuthView({ onAuthSuccess, settings }) {
             <form onSubmit={handleLogin}>
               <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                  Email Address or Mobile Phone
+                  Mobile Phone Number (or Email)
                 </label>
                 <div style={{ position: 'relative' }}>
-                  <Mail size={16} style={{ position: 'absolute', left: '12px', top: '12px', color: '#94a3b8' }} />
+                  <Phone size={16} style={{ position: 'absolute', left: '12px', top: '12px', color: '#94a3b8' }} />
                   <input
                     type="text"
                     required
-                    placeholder="e.g. member@example.com or 9876543210"
-                    value={signInData.email}
-                    onChange={(e) => setSignInData({ ...signInData, email: e.target.value })}
+                    placeholder="e.g. 9876543210 (or member@example.com)"
+                    value={signInData.identifier}
+                    onChange={(e) => setSignInData({ ...signInData, identifier: e.target.value })}
                     style={{
                       width: '100%',
                       padding: '10px 14px 10px 38px',
@@ -332,6 +337,9 @@ export default function AuthView({ onAuthSuccess, settings }) {
                       boxSizing: 'border-box'
                     }}
                   />
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                  📱 Sign in easily using your registered 10-digit mobile phone number.
                 </div>
               </div>
 
@@ -474,14 +482,14 @@ export default function AuthView({ onAuthSuccess, settings }) {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
-                    Email Address <span style={{ color: '#ef4444' }}>*</span>
+                    Mobile Phone / WhatsApp <span style={{ color: '#ef4444' }}>* (Login ID)</span>
                   </label>
                   <input
-                    type="email"
+                    type="tel"
                     required
-                    placeholder="e.g. name@email.com"
-                    value={signUpData.email}
-                    onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })}
+                    placeholder="e.g. 9876543210"
+                    value={signUpData.phone}
+                    onChange={(e) => setSignUpData({ ...signUpData, phone: e.target.value, whatsapp: e.target.value })}
                     style={{
                       width: '100%',
                       padding: '8px 12px',
@@ -492,6 +500,9 @@ export default function AuthView({ onAuthSuccess, settings }) {
                       boxSizing: 'border-box'
                     }}
                   />
+                  <span style={{ fontSize: '10.5px', color: '#059669', display: 'block', marginTop: '2px' }}>
+                    ✓ Used to log into your account
+                  </span>
                 </div>
 
                 <div>
@@ -518,14 +529,13 @@ export default function AuthView({ onAuthSuccess, settings }) {
 
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: '4px' }}>
-                    Mobile Phone / WhatsApp <span style={{ color: '#ef4444' }}>*</span>
+                    Email Address <span style={{ color: '#64748b', fontWeight: 'normal' }}>(Optional)</span>
                   </label>
                   <input
-                    type="text"
-                    required
-                    placeholder="e.g. +91 98765 43210"
-                    value={signUpData.phone}
-                    onChange={(e) => setSignUpData({ ...signUpData, phone: e.target.value, whatsapp: e.target.value })}
+                    type="email"
+                    placeholder="e.g. name@email.com (Optional)"
+                    value={signUpData.email}
+                    onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })}
                     style={{
                       width: '100%',
                       padding: '8px 12px',
@@ -536,6 +546,9 @@ export default function AuthView({ onAuthSuccess, settings }) {
                       boxSizing: 'border-box'
                     }}
                   />
+                  <span style={{ fontSize: '10.5px', color: '#64748b', display: 'block', marginTop: '2px' }}>
+                    Optional: for receiving PDF receipt
+                  </span>
                 </div>
 
                 <div>

@@ -60,6 +60,7 @@ async function initDatabase() {
         smtp_pass VARCHAR(100) DEFAULT '',
         smtp_from_name VARCHAR(100) DEFAULT 'Sri Sarada Seva Charitable Trust',
         smtp_from_email VARCHAR(100) DEFAULT '',
+        whatsapp_message TEXT,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -71,6 +72,32 @@ async function initDatabase() {
         INSERT INTO trust_settings (id) VALUES (1);
       `);
     }
+
+    // Ensure whatsapp_message column exists on existing databases & initialize default template
+    await client.query(`
+      ALTER TABLE trust_settings ADD COLUMN IF NOT EXISTS whatsapp_message TEXT;
+    `);
+
+    const defaultWhatsAppTemplate = `🙏 *Namaste {donor_name}*,
+
+On behalf of *{trust_name}*, we gratefully acknowledge the receipt of your contribution:
+📄 *Receipt No:* {receipt_no}
+📅 *Date:* {date}
+💰 *Amount:* {amount}
+💳 *Payment Mode:* {payment_mode}
+
+📥 *Download Official e-Receipt PDF:*
+{pdf_url}
+
+Thank you for your generosity and continuous support.
+Warm regards,
+*{trust_name}*`;
+
+    await client.query(`
+      UPDATE trust_settings 
+      SET whatsapp_message = $1 
+      WHERE (whatsapp_message IS NULL OR TRIM(whatsapp_message) = '') AND id = 1;
+    `, [defaultWhatsAppTemplate]);
 
     // 2. Account Heads Table (Categories of funds/accounts)
     await client.query(`
@@ -175,7 +202,7 @@ async function initDatabase() {
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         full_name VARCHAR(200) NOT NULL,
-        email VARCHAR(100) UNIQUE NOT NULL,
+        email VARCHAR(100) UNIQUE,
         phone VARCHAR(50),
         whatsapp VARCHAR(50),
         address TEXT,
@@ -187,6 +214,12 @@ async function initDatabase() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+    `);
+
+    // Ensure email is optional in users table for existing databases
+    await client.query(`
+      ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
     `);
 
     await client.query(`

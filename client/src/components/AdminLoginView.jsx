@@ -169,14 +169,14 @@ export default function AdminLoginView({ onAuthSuccess, settings, onGoToMemberPo
           <form onSubmit={handleAdminLogin}>
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
-                Admin Email Address
+                Admin Email Address or Mobile Phone
               </label>
               <div style={{ position: 'relative' }}>
                 <Mail size={16} style={{ position: 'absolute', left: '12px', top: '12px', color: '#94a3b8' }} />
                 <input
-                  type="email"
+                  type="text"
                   required
-                  placeholder="admin@bridgeoflove.org"
+                  placeholder="e.g. admin@bridgeoflove.org or 9444100000"
                   value={adminData.email}
                   onChange={(e) => setAdminData({ ...adminData, email: e.target.value })}
                   style={{

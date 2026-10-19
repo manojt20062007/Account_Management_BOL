@@ -240,16 +240,16 @@ export default function NewReceiptModal({
 
                     <div className="form-group">
                       <label className="form-label">
-                        <span>Email Address</span>
+                        <span>Email Address (Optional)</span>
                       </label>
                       <input
                         type="email"
                         className="form-control"
-                        placeholder="e.g. donor@example.com"
+                        placeholder="e.g. donor@example.com (Optional)"
                         value={formData.donor_email}
                         onChange={(e) => setFormData({ ...formData, donor_email: e.target.value })}
                       />
-                      <span className="form-help">PDF will be automatically sent via SMTP</span>
+                      <span className="form-help">Optional: PDF receipt will be dispatched via SMTP if provided</span>
                     </div>
 
                     <div className="form-group full-width">
