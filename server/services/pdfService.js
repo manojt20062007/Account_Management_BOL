@@ -421,21 +421,23 @@ function generateReceiptPdf(receipt, settings = {}) {
 
 /**
  * ONE-CLICK PDF GENERATOR FOR ALL ACCOUNTS (100% Dynamic with settings)
+ * Polished, high-definition executive statement layout with zero ghost pages.
  */
 function generateAllAccountsPdf(receipts, settings = {}) {
   return new Promise((resolve, reject) => {
     try {
       const trustName = settings.trust_name || 'BRIDGE OF LOVE';
-      const currencySymbol = settings.currency_symbol || '₹';
+      // Format currency: Use "Rs." in standard PostScript fonts to prevent broken '¹' glyph in Helvetica
+      const currCode = 'Rs.';
 
       const doc = new PDFDocument({
         size: 'A4',
-        margin: 30,
+        margin: 24,
         bufferPages: true,
         info: {
           Title: `${trustName.replace(/\s+/g, '_')}_All_Accounts_Statement_${new Date().toISOString().slice(0, 10)}`,
           Author: trustName,
-          Subject: `${trustName} — Complete Accounts & Receipts Statement`,
+          Subject: `${trustName} Consolidated Statement of All Accounts`,
         },
       });
 
@@ -445,206 +447,389 @@ function generateAllAccountsPdf(receipts, settings = {}) {
 
       const pageWidth = doc.page.width;
       const pageHeight = doc.page.height;
-      const margin = 28;
+      const margin = 24;
       const contentWidth = pageWidth - margin * 2;
 
-      // PAGE 1: TITLE & EXECUTIVE FINANCIAL SUMMARY
-      doc.rect(margin, margin, contentWidth, 80).fillColor('#003366').fill();
-
-      const hasLogo = fs.existsSync(LOGO_PATH);
-      if (hasLogo) {
-        doc.image(LOGO_PATH, margin + 14, margin + 16, { width: 48, height: 48 });
+      // Register Tamil font if available
+      const tamilFontPath = path.join(__dirname, '../assets/latha1.ttf');
+      const hasTamilFont = fs.existsSync(tamilFontPath);
+      if (hasTamilFont) {
+        doc.registerFont('TamilFont', tamilFontPath);
       }
 
-      doc.font('Helvetica-Bold').fontSize(16).fillColor('#ffffff')
-        .text(trustName.toUpperCase(), margin + 70, margin + 16, { align: 'center', width: contentWidth - 140 });
+      // Helper to draw watermark
+      const drawWatermark = () => {
+        if (fs.existsSync(HANDS_HEART_PATH)) {
+          doc.save();
+          doc.opacity(0.06);
+          const wmWidth = 420;
+          const wmHeight = 300;
+          doc.image(HANDS_HEART_PATH, (pageWidth - wmWidth) / 2, (pageHeight - wmHeight) / 2, {
+            width: wmWidth,
+            height: wmHeight,
+          });
+          doc.restore();
+        }
+      };
+
+      // Helper to draw outer frame border
+      const drawPageFrame = () => {
+        doc.rect(margin - 4, margin - 4, contentWidth + 8, pageHeight - (margin * 2) + 8)
+          .lineWidth(1)
+          .strokeColor('#003366')
+          .stroke();
+      };
+
+      // First Page setup
+      drawWatermark();
+      drawPageFrame();
+
+      // =========================================================================
+      // 1. EXECUTIVE HEADER
+      // =========================================================================
+      const headerHeight = 84;
+      doc.rect(margin, margin, contentWidth, headerHeight).fillColor('#00264d').fill();
+
+      // Left: Logo
+      const hasLogo = fs.existsSync(LOGO_PATH);
+      if (hasLogo) {
+        doc.circle(margin + 36, margin + 42, 28).fillColor('#ffffff').fill();
+        doc.image(LOGO_PATH, margin + 11, margin + 17, { width: 50, height: 50 });
+      }
+
+      // Right: Mother Teresa Cameo Oval
+      const hasMother = fs.existsSync(MOTHER_PATH);
+      const motherCameoW = 48;
+      const motherCameoH = 58;
+      const motherCenterX = pageWidth - margin - 38;
+      const motherCenterY = margin + 42;
+
+      if (hasMother) {
+        doc.save();
+        doc.ellipse(motherCenterX, motherCenterY, motherCameoW / 2, motherCameoH / 2).clip();
+        doc.image(MOTHER_PATH, motherCenterX - motherCameoW / 2, motherCenterY - motherCameoH / 2, {
+          width: motherCameoW,
+          height: motherCameoH,
+        });
+        doc.restore();
+
+        // Elegant Gold/Navy Oval Ring
+        doc.ellipse(motherCenterX, motherCenterY, motherCameoW / 2 + 1, motherCameoH / 2 + 1)
+          .lineWidth(1.5)
+          .strokeColor('#fde68a')
+          .stroke();
+      }
+
+      // Center: Trust Titles & Mottos
+      const centerStartX = margin + 74;
+      const centerWidth = contentWidth - 148;
+      let curY = margin + 8;
+
+      if (hasTamilFont) {
+        doc.font('TamilFont').fontSize(11).fillColor('#93c5fd')
+          .text('அன்பின் பாலம்', centerStartX, curY, { align: 'center', width: centerWidth });
+        curY += 14;
+      } else {
+        curY += 2;
+      }
+
+      doc.font('Helvetica-Bold').fontSize(15).fillColor('#ffffff')
+        .text(trustName.toUpperCase(), centerStartX, curY, { align: 'center', width: centerWidth, characterSpacing: 1 });
+      curY += 18;
 
       if (settings.tagline) {
-        doc.font('Helvetica').fontSize(9).fillColor('#cbd5e1')
-          .text(settings.tagline.replace(/\n/g, '  •  '), margin + 70, margin + 38, { align: 'center', width: contentWidth - 140, lineBreak: false });
+        doc.font('Helvetica').fontSize(7.5).fillColor('#fde68a')
+          .text(settings.tagline.replace(/\n/g, '  •  '), centerStartX, curY, { align: 'center', width: centerWidth });
+        curY += 11;
       }
 
       if (settings.address) {
-        doc.font('Helvetica').fontSize(8.5).fillColor('#94a3b8')
-          .text(settings.address.replace(/\n/g, ', '), margin + 70, margin + 52, { align: 'center', width: contentWidth - 140, lineBreak: false });
+        doc.font('Helvetica').fontSize(7).fillColor('#cbd5e1')
+          .text(settings.address.replace(/\n/g, ', '), centerStartX, curY, { align: 'center', width: centerWidth });
+        curY += 11;
       }
 
-      doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#38bdf8')
-        .text('CONSOLIDATED ALL ACCOUNTS & RECEIPTS STATEMENT', margin + 70, margin + 65, { align: 'center', width: contentWidth - 140 });
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#38bdf8')
+        .text('CONSOLIDATED ALL ACCOUNTS & RECEIPTS STATEMENT', centerStartX, curY, { align: 'center', width: centerWidth, characterSpacing: 0.5 });
 
-      let y = margin + 95;
+      curY = margin + headerHeight + 6;
 
-      // Metadata Bar
-      doc.rect(margin, y, contentWidth, 24).fillColor('#f1f5f9').fill();
-      doc.rect(margin, y, contentWidth, 24).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#334155');
-      doc.text(`Generated On: ${new Date().toLocaleString('en-IN')}`, margin + 12, y + 7);
-      doc.text(`Total Accounts Records: ${receipts.length}`, margin + 260, y + 7);
-      doc.text(`Scope: All Accounts & Funds`, pageWidth - margin - 180, y + 7, { width: 170, align: 'right' });
-      y += 34;
+      // =========================================================================
+      // 2. METADATA RIBBON
+      // =========================================================================
+      const metaHeight = 20;
+      doc.rect(margin, curY, contentWidth, metaHeight).fillColor('#f1f5f9').fill();
+      doc.rect(margin, curY, contentWidth, metaHeight).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
 
-      // Executive Metrics Cards
-      const totalAmount = receipts.reduce((sum, r) => sum + parseFloat(r.amount), 0);
-      const cardWidth = (contentWidth - 20) / 3;
+      const genTimeStr = new Date().toLocaleString('en-IN', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      });
+      doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#334155');
+      doc.text(`Generated: ${genTimeStr}`, margin + 10, curY + 6);
+      doc.text(`Total Accounts Records: ${receipts.length} Vouchers`, margin + 200, curY + 6);
+      doc.text(`Scope: All Accounts & Funds (Audited)`, pageWidth - margin - 200, curY + 6, { width: 190, align: 'right' });
 
-      // Total Collections
-      doc.rect(margin, y, cardWidth, 60).fillColor('#f8fafc').fill();
-      doc.rect(margin, y, cardWidth, 60).lineWidth(1).strokeColor('#003366').stroke();
-      doc.font('Helvetica-Bold').fontSize(8).fillColor('#64748b').text('TOTAL CONTRIBUTIONS', margin + 12, y + 10);
-      doc.font('Helvetica-Bold').fontSize(14).fillColor('#003366')
-        .text(`${currencySymbol} ${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, margin + 12, y + 24);
-      doc.font('Helvetica').fontSize(7.5).fillColor('#15803d').text('Audited Inflows in Books', margin + 12, y + 44);
+      curY += metaHeight + 8;
 
-      // Total Receipts
-      doc.rect(margin + cardWidth + 10, y, cardWidth, 60).fillColor('#f8fafc').fill();
-      doc.rect(margin + cardWidth + 10, y, cardWidth, 60).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
-      doc.font('Helvetica-Bold').fontSize(8).fillColor('#64748b').text('TOTAL TRANSACTIONS', margin + cardWidth + 22, y + 10);
-      doc.font('Helvetica-Bold').fontSize(14).fillColor('#0f172a')
-        .text(`${receipts.length} Vouchers Issued`, margin + cardWidth + 22, y + 24);
+      // =========================================================================
+      // 3. EXECUTIVE KPI CARDS (3-COLUMN)
+      // =========================================================================
+      const totalAmount = receipts.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
       const uniqueDonors = new Set(receipts.map(r => r.donor_name)).size;
-      doc.font('Helvetica').fontSize(7.5).fillColor('#475569').text(`Across ${uniqueDonors} Unique Donors`, margin + cardWidth + 22, y + 44);
+      const cardHeight = 48;
+      const gap = 8;
+      const cardW = (contentWidth - gap * 2) / 3;
 
-      // Trust Status
-      doc.rect(margin + (cardWidth + 10) * 2, y, cardWidth, 60).fillColor('#f8fafc').fill();
-      doc.rect(margin + (cardWidth + 10) * 2, y, cardWidth, 60).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
-      doc.font('Helvetica-Bold').fontSize(8).fillColor('#64748b').text('ORGANIZATION', margin + (cardWidth + 10) * 2 + 12, y + 10);
-      doc.font('Helvetica-Bold').fontSize(11).fillColor('#003366').text(trustName, margin + (cardWidth + 10) * 2 + 12, y + 26);
-      doc.font('Helvetica').fontSize(7.5).fillColor('#475569').text(settings.address ? settings.address.slice(0, 35) : 'Official Office', margin + (cardWidth + 10) * 2 + 12, y + 44);
+      // Card 1: Total Contributions
+      doc.rect(margin, curY, cardW, cardHeight).fillColor('#f8fafc').fill();
+      doc.rect(margin, curY, cardW, cardHeight).lineWidth(1).strokeColor('#003366').stroke();
+      doc.font('Helvetica-Bold').fontSize(7).fillColor('#64748b').text('TOTAL CONTRIBUTIONS', margin + 10, curY + 7);
+      doc.font('Helvetica-Bold').fontSize(13).fillColor('#003366')
+        .text(`${currCode} ${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, margin + 10, curY + 18);
+      doc.font('Helvetica-Bold').fontSize(7).fillColor('#16a34a').text('✓ Reconciled Inflows in Books', margin + 10, curY + 34);
 
-      y += 72;
+      // Card 2: Total Transactions
+      const card2X = margin + cardW + gap;
+      doc.rect(card2X, curY, cardW, cardHeight).fillColor('#f8fafc').fill();
+      doc.rect(card2X, curY, cardW, cardHeight).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
+      doc.font('Helvetica-Bold').fontSize(7).fillColor('#64748b').text('TOTAL TRANSACTIONS', card2X + 10, curY + 7);
+      doc.font('Helvetica-Bold').fontSize(13).fillColor('#0f172a')
+        .text(`${receipts.length} Vouchers Issued`, card2X + 10, curY + 18);
+      doc.font('Helvetica').fontSize(7).fillColor('#475569').text(`Across ${uniqueDonors} Unique Donors`, card2X + 10, curY + 34);
 
-      // Payment Mode Distribution
-      doc.font('Helvetica-Bold').fontSize(11).fillColor('#003366').text('1. Payment Mode & Collection Summary', margin, y);
-      y += 16;
+      // Card 3: Organization Details
+      const card3X = margin + (cardW + gap) * 2;
+      doc.rect(card3X, curY, cardW, cardHeight).fillColor('#f8fafc').fill();
+      doc.rect(card3X, curY, cardW, cardHeight).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
+      doc.font('Helvetica-Bold').fontSize(7).fillColor('#64748b').text('ORGANIZATION', card3X + 10, curY + 7);
+      doc.font('Helvetica-Bold').fontSize(10.5).fillColor('#003366').text(trustName, card3X + 10, curY + 19);
+      doc.font('Helvetica').fontSize(7).fillColor('#475569').text('Tiruttani – 631209, Tamil Nadu', card3X + 10, curY + 34);
 
-      doc.rect(margin, y, contentWidth, 20).fillColor('#003366').fill();
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#ffffff');
-      doc.text('Payment Method', margin + 10, y + 6);
-      doc.text('Transactions', margin + 260, y + 6);
-      doc.text(`Total Amount (${currencySymbol})`, margin + 370, y + 6);
-      y += 20;
+      curY += cardHeight + 10;
+
+      // =========================================================================
+      // 4. SECTION 1: PAYMENT MODE DISTRIBUTION SUMMARY
+      // =========================================================================
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#003366')
+        .text('1. Payment Mode & Collection Summary', margin, curY);
+      curY += 12;
+
+      // Table Header for Mode Distribution
+      const modeHeaderH = 16;
+      doc.rect(margin, curY, contentWidth, modeHeaderH).fillColor('#003366').fill();
+      doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#ffffff');
+      doc.text('Payment Method', margin + 10, curY + 4);
+      doc.text('Vouchers Count', margin + 200, curY + 4);
+      doc.text('Share (%)', margin + 320, curY + 4);
+      doc.text(`Total Amount (${currCode})`, pageWidth - margin - 120, curY + 4, { width: 110, align: 'right' });
+      curY += modeHeaderH;
 
       const modeMap = {};
       receipts.forEach(r => {
         const m = r.payment_mode || 'Cash';
         if (!modeMap[m]) modeMap[m] = { count: 0, total: 0 };
         modeMap[m].count += 1;
-        modeMap[m].total += parseFloat(r.amount);
+        modeMap[m].total += parseFloat(r.amount || 0);
       });
 
+      const modeRowH = 15;
       let isEven = false;
       Object.keys(modeMap).forEach(m => {
         const data = modeMap[m];
-        doc.rect(margin, y, contentWidth, 18).fillColor(isEven ? '#f8fafc' : '#ffffff').fill();
-        doc.font('Helvetica').fontSize(8.5).fillColor('#1e293b').text(m, margin + 10, y + 5);
-        doc.text(`${data.count}`, margin + 260, y + 5);
-        doc.font('Helvetica-Bold').text(`${currencySymbol} ${data.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, margin + 370, y + 5);
-        y += 18;
+        const sharePct = totalAmount > 0 ? ((data.total / totalAmount) * 100).toFixed(1) : '0.0';
+        doc.rect(margin, curY, contentWidth, modeRowH).fillColor(isEven ? '#f8fafc' : '#ffffff').fill();
+        doc.rect(margin, curY, contentWidth, modeRowH).lineWidth(0.25).strokeColor('#e2e8f0').stroke();
+
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#1e293b').text(m, margin + 10, curY + 4);
+        doc.font('Helvetica').fontSize(7.5).fillColor('#475569').text(`${data.count} ${data.count === 1 ? 'Voucher' : 'Vouchers'}`, margin + 200, curY + 4);
+        doc.font('Helvetica').fontSize(7.5).fillColor('#64748b').text(`${sharePct}%`, margin + 320, curY + 4);
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#003366')
+          .text(`${currCode} ${data.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, pageWidth - margin - 120, curY + 4, { width: 110, align: 'right' });
+
+        curY += modeRowH;
         isEven = !isEven;
       });
 
-      // SECTION 2: ALL ACCOUNTS DAYBOOK / RECEIPT VOUCHERS
-      doc.addPage();
-      y = margin;
+      curY += 10;
 
-      doc.font('Helvetica-Bold').fontSize(12).fillColor('#003366')
-        .text('2. Complete Itemized Daybook & Member Vouchers (All Accounts)', margin, y);
-      y += 18;
+      // =========================================================================
+      // 5. SECTION 2: ITEMIZED DAYBOOK & MEMBER VOUCHERS
+      // =========================================================================
+      doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#003366')
+        .text('2. Complete Itemized Daybook & Member Vouchers (All Accounts)', margin, curY);
+      curY += 13;
 
-      const drawTableHeader = (curY) => {
-        doc.rect(margin, curY, contentWidth, 22).fillColor('#003366').fill();
-        doc.font('Helvetica-Bold').fontSize(8).fillColor('#ffffff');
-        doc.text('Rec. No', margin + 6, curY + 7);
-        doc.text('Date', margin + 80, curY + 7);
-        doc.text('Donor & Contact', margin + 135, curY + 7);
-        doc.text('Payment Mode', margin + 290, curY + 7);
-        doc.text('Ref / Bank', margin + 395, curY + 7);
-        doc.text(`Amount (${currencySymbol})`, pageWidth - margin - 75, curY + 7, { width: 70, align: 'right' });
-        return curY + 22;
+      const colX = {
+        recNo: margin + 6,
+        recNoW: 108,
+        date: margin + 116,
+        dateW: 56,
+        donor: margin + 174,
+        donorW: 140,
+        mode: margin + 316,
+        modeW: 64,
+        ref: margin + 382,
+        refW: 82,
+        amt: margin + 466,
+        amtW: 75,
       };
 
-      y = drawTableHeader(y);
+      const drawDaybookHeader = (yPos) => {
+        const hHeight = 18;
+        doc.rect(margin, yPos, contentWidth, hHeight).fillColor('#003366').fill();
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#ffffff');
+        doc.text('Rec. No', colX.recNo, yPos + 5);
+        doc.text('Date', colX.date, yPos + 5);
+        doc.text('Donor & Contact', colX.donor, yPos + 5);
+        doc.text('Mode', colX.mode, yPos + 5);
+        doc.text('Ref / Bank', colX.ref, yPos + 5);
+        doc.text(`Amount (${currCode})`, colX.amt, yPos + 5, { width: colX.amtW, align: 'right' });
+        return yPos + hHeight;
+      };
 
+      curY = drawDaybookHeader(curY);
+
+      const rowH = 24;
       isEven = false;
+
       receipts.forEach((r) => {
-        if (y > pageHeight - margin - 45) {
+        // Break to next page safely before bottom boundary
+        if (curY + rowH > pageHeight - margin - 85) {
           doc.addPage();
-          y = margin;
-          y = drawTableHeader(y);
+          drawWatermark();
+          drawPageFrame();
+          curY = margin + 10;
+          curY = drawDaybookHeader(curY);
         }
 
-        const rowHeight = 24;
-        doc.rect(margin, y, contentWidth, rowHeight).fillColor(isEven ? '#f8fafc' : '#ffffff').fill();
-        doc.rect(margin, y, contentWidth, rowHeight).lineWidth(0.25).strokeColor('#e2e8f0').stroke();
+        doc.rect(margin, curY, contentWidth, rowH).fillColor(isEven ? '#f8fafc' : '#ffffff').fill();
+        doc.rect(margin, curY, contentWidth, rowH).lineWidth(0.25).strokeColor('#e2e8f0').stroke();
 
-        doc.font('Helvetica-Bold').fontSize(8).fillColor('#0f172a').text(r.receipt_number, margin + 6, y + 4);
-        doc.font('Helvetica').fontSize(7.5).fillColor('#475569')
-          .text(new Date(r.receipt_date).toLocaleDateString('en-IN'), margin + 80, y + 4);
+        // Rec No
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#0f172a')
+          .text(r.receipt_number || '—', colX.recNo, curY + 6, { width: colX.recNoW, lineBreak: false });
 
-        doc.font('Helvetica-Bold').fontSize(8).fillColor('#1e293b')
-          .text(r.donor_name, margin + 135, y + 4, { width: 145, ellipsis: true });
+        // Date
+        let dateStr = '—';
+        if (r.receipt_date) {
+          const d = new Date(r.receipt_date);
+          dateStr = !isNaN(d.getTime()) ? d.toLocaleDateString('en-IN') : String(r.receipt_date);
+        }
+        doc.font('Helvetica').fontSize(7).fillColor('#475569')
+          .text(dateStr, colX.date, curY + 6);
+
+        // Donor & Phone
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#1e293b')
+          .text(r.donor_name || '—', colX.donor, curY + 4, { width: colX.donorW, ellipsis: true });
         if (r.donor_phone || r.donor_email) {
-          doc.font('Helvetica').fontSize(7).fillColor('#64748b')
-            .text(r.donor_phone || r.donor_email, margin + 135, y + 14);
+          doc.font('Helvetica').fontSize(6.5).fillColor('#64748b')
+            .text(r.donor_phone || r.donor_email, colX.donor, curY + 13, { width: colX.donorW, ellipsis: true });
         }
 
+        // Clean Payment Mode to fit comfortably
+        const rawMode = r.payment_mode || 'Cash';
+        const formattedMode = rawMode
+          .replace(/Bank Transfer\s*\(NEFT\/RTGS\)/i, 'NEFT / RTGS')
+          .replace(/\(NEFT\/RTGS\)/i, '')
+          .trim();
         doc.font('Helvetica').fontSize(7.5).fillColor('#334155')
-          .text(r.payment_mode, margin + 290, y + 4);
+          .text(formattedMode, colX.mode, curY + 6, { width: colX.modeW, ellipsis: true });
 
-        const refText = [r.cheque_or_tx_ref, r.bank_name].filter(Boolean).join(' - ') || '—';
-        doc.font('Helvetica').fontSize(7).fillColor('#64748b')
-          .text(refText, margin + 395, y + 4, { width: 80, ellipsis: true });
+        // Ref / Bank on 2 clean lines
+        const refPart = (r.cheque_or_tx_ref || '').trim();
+        const bankPart = (r.bank_name || '').trim();
+        if (refPart && bankPart) {
+          doc.font('Helvetica').fontSize(6.5).fillColor('#475569')
+            .text(refPart, colX.ref, curY + 4, { width: colX.refW, ellipsis: true });
+          doc.font('Helvetica').fontSize(6).fillColor('#64748b')
+            .text(bankPart, colX.ref, curY + 13, { width: colX.refW, ellipsis: true });
+        } else {
+          doc.font('Helvetica').fontSize(6.5).fillColor('#64748b')
+            .text(refPart || bankPart || '—', colX.ref, curY + 6, { width: colX.refW, ellipsis: true });
+        }
 
-        const rowAmt = parseFloat(r.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 });
-        doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#003366')
-          .text(`${currencySymbol} ${rowAmt}`, pageWidth - margin - 75, y + 6, { width: 70, align: 'right' });
+        // Amount
+        const rowAmt = parseFloat(r.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+        doc.font('Helvetica-Bold').fontSize(8).fillColor('#003366')
+          .text(`${currCode} ${rowAmt}`, colX.amt, curY + 6, { width: colX.amtW, align: 'right' });
 
-        y += rowHeight;
+        curY += rowH;
         isEven = !isEven;
       });
 
-      // Total Row
-      if (y > pageHeight - margin - 60) {
+      // GRAND TOTAL ROW
+      if (curY + 24 > pageHeight - margin - 75) {
         doc.addPage();
-        y = margin;
+        drawWatermark();
+        drawPageFrame();
+        curY = margin + 10;
       }
 
-      y += 8;
-      doc.rect(margin, y, contentWidth, 26).fillColor('#003366').fill();
-      doc.font('Helvetica-Bold').fontSize(10).fillColor('#ffffff')
-        .text('GRAND TOTAL FOR ALL ACCOUNTS:', margin + 15, y + 8);
-      doc.font('Helvetica-Bold').fontSize(11).fillColor('#38bdf8')
-        .text(`${currencySymbol} ${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, pageWidth - margin - 150, y + 7, { width: 140, align: 'right' });
+      const totalRowH = 22;
+      doc.rect(margin, curY, contentWidth, totalRowH).fillColor('#00264d').fill();
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#ffffff')
+        .text(`GRAND TOTAL FOR ALL ACCOUNTS (${receipts.length} Vouchers):`, margin + 12, curY + 6);
+      doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#38bdf8')
+        .text(`${currCode} ${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, colX.amt - 40, curY + 6, { width: colX.amtW + 40, align: 'right' });
 
-      y += 44;
+      curY += totalRowH + 10;
 
-      // Verification certification (Dynamic)
-      if (y > pageHeight - margin - 75) {
+      // =========================================================================
+      // 6. AUDIT & TRUSTEE CERTIFICATION
+      // =========================================================================
+      const certH = 58;
+      if (curY + certH > pageHeight - margin - 25) {
         doc.addPage();
-        y = margin;
+        drawWatermark();
+        drawPageFrame();
+        curY = margin + 10;
       }
 
-      doc.rect(margin, y, contentWidth, 65).fillColor('#f8fafc').fill();
-      doc.rect(margin, y, contentWidth, 65).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
+      doc.rect(margin, curY, contentWidth, certH).fillColor('#f8fafc').fill();
+      doc.rect(margin, curY, contentWidth, certH).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
 
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#003366')
-        .text('AUDIT & TRUSTEE CERTIFICATION', margin + 15, y + 8);
-      doc.font('Helvetica').fontSize(8).fillColor('#475569')
-        .text(`Certified that the above consolidated statement of all accounts and receipt vouchers reflects a true and complete record of all contributions received by ${trustName}.`, margin + 15, y + 22, { width: 330 });
+      // Left: Certification text
+      doc.font('Helvetica-Bold').fontSize(8).fillColor('#003366')
+        .text('AUDIT & TRUSTEE CERTIFICATION', margin + 12, curY + 6);
+      doc.font('Helvetica').fontSize(7.5).fillColor('#475569')
+        .text(
+          `Certified that the above consolidated statement of all accounts and receipt vouchers reflects a true, complete, and reconciled record of all contributions received by ${trustName}. All collections are audited and accounted for charitable trust welfare activities.`,
+          margin + 12,
+          curY + 18,
+          { width: 330, lineGap: 1.5 }
+        );
 
-      doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#003366')
-        .text(`For ${trustName}`, pageWidth - margin - 180, y + 8, { align: 'center', width: 160 });
-      doc.font('Helvetica-Bold').fontSize(9).fillColor('#0f172a')
-        .text(settings.signatory_name || 'Authorized Signatory', pageWidth - margin - 180, y + 42, { align: 'center', width: 160 });
-      doc.font('Helvetica').fontSize(7.5).fillColor('#64748b')
-        .text(settings.signatory_title || 'Trust Committee', pageWidth - margin - 180, y + 52, { align: 'center', width: 160 });
+      // Right: Signatory block with real signature image
+      const sigX = pageWidth - margin - 170;
+      doc.font('Helvetica-Bold').fontSize(8).fillColor('#003366')
+        .text(`For ${trustName}`, sigX, curY + 6, { align: 'center', width: 160 });
 
-      // Add page numbering
+      if (fs.existsSync(SIGN_PATH)) {
+        doc.image(SIGN_PATH, sigX + 55, curY + 17, { width: 50, height: 20 });
+      }
+
+      doc.font('Helvetica-Bold').fontSize(8).fillColor('#0f172a')
+        .text(settings.signatory_name || 'Authorized Signatory', sigX, curY + 38, { align: 'center', width: 160 });
+      doc.font('Helvetica').fontSize(6.5).fillColor('#64748b')
+        .text(settings.signatory_title || 'Trust Committee', sigX, curY + 47, { align: 'center', width: 160 });
+
+      // =========================================================================
+      // 7. SAFE PAGE NUMBERING (ZERO GHOST PAGES)
+      // =========================================================================
       const range = doc.bufferedPageRange();
       for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
-        doc.font('Helvetica').fontSize(7.5).fillColor('#94a3b8')
-          .text(`Page ${i + 1} of ${range.count}   |   ${trustName} — All Accounts Statement`, margin, pageHeight - margin + 8, { align: 'center', width: contentWidth });
+        const oldBottom = doc.page.margins.bottom;
+        doc.page.margins.bottom = 0;
+        doc.font('Helvetica').fontSize(7).fillColor('#94a3b8')
+          .text(
+            `Page ${i + 1} of ${range.count}   •   ${trustName} — Consolidated Accounts & Receipts Audit Statement`,
+            margin,
+            pageHeight - margin + 6,
+            { align: 'center', width: contentWidth, lineBreak: false }
+          );
+        doc.page.margins.bottom = oldBottom;
       }
 
       doc.end();
