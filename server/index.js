@@ -35,12 +35,12 @@ function authenticateToken(req, res, next) {
 // 0. AUTHENTICATION & USER MANAGEMENT (SIGNUP & LOGIN - NO OTP)
 // ---------------------------------------------------------------------------
 
-// Signup: Personal info, no OTP required, instantly signs in & registers as donor
+// Signup: Phone is primary for login, email is optional, no OTP required
 app.post('/api/auth/signup', async (req, res) => {
   try {
     const {
       full_name,
-      email,
+      email = '',
       password,
       phone = '',
       whatsapp = '',
@@ -49,52 +49,89 @@ app.post('/api/auth/signup', async (req, res) => {
     } = req.body;
 
     if (!full_name || !full_name.trim()) {
-      return res.status(400).json({ success: false, error: 'Full Name is required' });
+      return res.status(400).json({ success: false, error: 'Full Legal Name is required' });
     }
-    if (!email || !email.trim()) {
-      return res.status(400).json({ success: false, error: 'Valid Email Address is required' });
+    if (!phone || !phone.trim()) {
+      return res.status(400).json({ success: false, error: 'Mobile Phone Number is required for sign in' });
     }
     if (!password || password.length < 4) {
       return res.status(400).json({ success: false, error: 'Password must be at least 4 characters long' });
     }
 
-    const cleanEmail = email.trim().toLowerCase();
     const cleanName = full_name.trim();
+    const cleanPhone = phone.trim();
+    const cleanPhoneDigits = cleanPhone.replace(/[^0-9]/g, '');
+    const phoneNormalized = cleanPhoneDigits.length >= 10 ? cleanPhoneDigits.slice(-10) : cleanPhoneDigits;
+    const cleanEmail = email && email.trim() ? email.trim().toLowerCase() : null;
 
-    // Check if user account already exists
-    const existingUser = await query('SELECT id FROM users WHERE LOWER(email) = $1', [cleanEmail]);
-    if (existingUser.rows.length > 0) {
+    // Check if phone already registered in users
+    const existingPhone = await query(`
+      SELECT id FROM users 
+      WHERE phone = $1 
+         OR (phone IS NOT NULL AND $2 != '' AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 10) = $2)
+      LIMIT 1
+    `, [cleanPhone, phoneNormalized]);
+
+    if (existingPhone.rows.length > 0) {
       return res.status(400).json({
         success: false,
-        error: 'An account with this email already exists. Please sign in instead.',
+        error: 'An account with this phone number already exists. Please sign in.',
       });
+    }
+
+    // If email provided, verify it is not already used
+    if (cleanEmail) {
+      const existingEmail = await query('SELECT id FROM users WHERE LOWER(email) = $1 LIMIT 1', [cleanEmail]);
+      if (existingEmail.rows.length > 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'An account with this email address already exists. Please sign in.',
+        });
+      }
     }
 
     // Link or create matching entry in donors table
     let donorId = null;
-    const existingDonor = await query(
-      `SELECT id FROM donors WHERE LOWER(email) = $1 OR (phone = $2 AND $2 != '') LIMIT 1`,
-      [cleanEmail, phone.trim()]
-    );
+    let existingDonor = null;
+    if (cleanEmail) {
+      existingDonor = await query(
+        `SELECT id FROM donors 
+         WHERE phone = $1 
+            OR (phone IS NOT NULL AND $2 != '' AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 10) = $2)
+            OR (email IS NOT NULL AND LOWER(email) = $3) 
+         LIMIT 1`,
+        [cleanPhone, phoneNormalized, cleanEmail]
+      );
+    } else {
+      existingDonor = await query(
+        `SELECT id FROM donors 
+         WHERE phone = $1 
+            OR whatsapp = $1 
+            OR (phone IS NOT NULL AND $2 != '' AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 10) = $2) 
+         LIMIT 1`,
+        [cleanPhone, phoneNormalized]
+      );
+    }
 
     if (existingDonor.rows.length > 0) {
       donorId = existingDonor.rows[0].id;
       await query(`
         UPDATE donors 
         SET full_name = $1, 
-            phone = COALESCE(NULLIF($2, ''), phone), 
+            phone = $2, 
             whatsapp = COALESCE(NULLIF($3, ''), whatsapp), 
             address = COALESCE(NULLIF($4, ''), address), 
             pan_or_id = COALESCE(NULLIF($5, ''), pan_or_id),
+            email = COALESCE($6, email),
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = $6
-      `, [cleanName, phone.trim(), whatsapp.trim() || phone.trim(), address.trim(), pan_or_id.trim().toUpperCase(), donorId]);
+        WHERE id = $7
+      `, [cleanName, cleanPhone, whatsapp.trim() || cleanPhone, address.trim(), pan_or_id.trim().toUpperCase(), cleanEmail, donorId]);
     } else {
       const newDonor = await query(`
         INSERT INTO donors (full_name, email, phone, whatsapp, address, pan_or_id)
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id
-      `, [cleanName, cleanEmail, phone.trim(), whatsapp.trim() || phone.trim(), address.trim(), pan_or_id.trim().toUpperCase()]);
+      `, [cleanName, cleanEmail || '', cleanPhone, whatsapp.trim() || cleanPhone, address.trim(), pan_or_id.trim().toUpperCase()]);
       donorId = newDonor.rows[0].id;
     }
 
@@ -104,7 +141,7 @@ app.post('/api/auth/signup', async (req, res) => {
       INSERT INTO users (full_name, email, phone, whatsapp, address, pan_or_id, role, donor_id, password_hash, password_salt)
       VALUES ($1, $2, $3, $4, $5, $6, 'donor', $7, $8, $9)
       RETURNING id, full_name, email, phone, whatsapp, address, pan_or_id, role, donor_id, created_at
-    `, [cleanName, cleanEmail, phone.trim(), whatsapp.trim() || phone.trim(), address.trim(), pan_or_id.trim().toUpperCase(), donorId, hash, salt]);
+    `, [cleanName, cleanEmail, cleanPhone, whatsapp.trim() || cleanPhone, address.trim(), pan_or_id.trim().toUpperCase(), donorId, hash, salt]);
 
     const user = insertUser.rows[0];
     await query('UPDATE donors SET user_id = $1 WHERE id = $2', [user.id, donorId]);
@@ -123,28 +160,36 @@ app.post('/api/auth/signup', async (req, res) => {
   }
 });
 
-// Login
+// Login: Supports Phone Number or Email
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ success: false, error: 'Email and password are required' });
+    const { email, phone, identifier, password } = req.body;
+    const loginInput = (identifier || phone || email || '').trim();
+
+    if (!loginInput || !password) {
+      return res.status(400).json({ success: false, error: 'Phone number (or email) and password are required' });
     }
 
-    const cleanIdentifier = email.trim().toLowerCase();
-    const result = await query(
-      'SELECT * FROM users WHERE LOWER(email) = $1 OR phone = $2 LIMIT 1',
-      [cleanIdentifier, email.trim()]
-    );
+    const cleanInput = loginInput.toLowerCase();
+    const cleanDigits = loginInput.replace(/[^0-9]/g, '');
+    const phoneNormalized = cleanDigits.length >= 10 ? cleanDigits.slice(-10) : cleanDigits;
+
+    const result = await query(`
+      SELECT * FROM users 
+      WHERE (email IS NOT NULL AND LOWER(email) = $1)
+         OR phone = $2
+         OR (phone IS NOT NULL AND $3 != '' AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 10) = $3)
+      LIMIT 1
+    `, [cleanInput, loginInput, phoneNormalized]);
 
     if (result.rows.length === 0) {
-      return res.status(401).json({ success: false, error: 'Invalid email or password' });
+      return res.status(401).json({ success: false, error: 'Invalid phone number or password' });
     }
 
     const user = result.rows[0];
     const isValid = verifyPassword(password, user.password_hash, user.password_salt);
     if (!isValid) {
-      return res.status(401).json({ success: false, error: 'Invalid email or password' });
+      return res.status(401).json({ success: false, error: 'Invalid phone number or password' });
     }
 
     const token = generateToken(user.id, user.role);
@@ -197,15 +242,18 @@ app.get('/api/user/portal', authenticateToken, async (req, res) => {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
     const user = userRes.rows[0];
+    const userPhoneDigits = (user.phone || '').replace(/[^0-9]/g, '');
+    const phoneNormalized = userPhoneDigits.length >= 10 ? userPhoneDigits.slice(-10) : userPhoneDigits;
 
-    // Find all receipts matching this member by donor_id, email, or phone
+    // Find all receipts matching this member by donor_id, phone, or email
     const receiptsRes = await query(`
       SELECT * FROM receipts 
       WHERE (donor_id IS NOT NULL AND donor_id = $1)
-         OR (LOWER(donor_email) = LOWER($2) AND $2 != '')
-         OR (donor_phone = $3 AND $3 != '')
+         OR (donor_phone = $2 AND $2 != '')
+         OR (donor_phone IS NOT NULL AND $3 != '' AND RIGHT(REGEXP_REPLACE(donor_phone, '[^0-9]', '', 'g'), 10) = $3)
+         OR (donor_email IS NOT NULL AND $4 IS NOT NULL AND LOWER(donor_email) = LOWER($4) AND $4 != '')
       ORDER BY receipt_date DESC, id DESC
-    `, [user.donor_id, user.email, user.phone || '']);
+    `, [user.donor_id, user.phone || '', phoneNormalized, user.email || null]);
 
     const receipts = receiptsRes.rows;
 
@@ -373,6 +421,24 @@ app.get('/api/settings', async (req, res) => {
     const effectivePass = settings.smtp_pass || process.env.SMTP_PASS || '';
     settings.has_smtp_pass = Boolean(effectivePass);
     settings.smtp_pass = settings.has_smtp_pass ? '••••••••' : '';
+
+    if (!settings.whatsapp_message || !settings.whatsapp_message.trim()) {
+      settings.whatsapp_message = `🙏 *Namaste {donor_name}*,
+
+On behalf of *{trust_name}*, we gratefully acknowledge the receipt of your contribution:
+📄 *Receipt No:* {receipt_no}
+📅 *Date:* {date}
+💰 *Amount:* {amount}
+💳 *Payment Mode:* {payment_mode}
+
+📥 *Download Official e-Receipt PDF:*
+{pdf_url}
+
+Thank you for your generosity and continuous support.
+Warm regards,
+*{trust_name}*`;
+    }
+
     res.json({ success: true, data: settings });
   } catch (err) {
     console.error('Error fetching settings:', err);
@@ -389,6 +455,7 @@ app.post('/api/settings', async (req, res) => {
       s.currency_symbol, s.currency_code, s.signatory_name, s.signatory_title,
       s.receipt_prefix, s.smtp_host || 'smtp.gmail.com', parseInt(s.smtp_port || 587),
       Boolean(s.smtp_secure), (s.smtp_user || '').trim(), (s.smtp_from_name || '').trim(), (s.smtp_from_email || '').trim(),
+      s.whatsapp_message !== undefined ? s.whatsapp_message : '',
     ];
 
     let updateQuery = `
@@ -398,7 +465,7 @@ app.post('/api/settings', async (req, res) => {
         email = $9, website = $10, currency_symbol = $11, currency_code = $12,
         signatory_name = $13, signatory_title = $14, receipt_prefix = $15,
         smtp_host = $16, smtp_port = $17, smtp_secure = $18, smtp_user = $19,
-        smtp_from_name = $20, smtp_from_email = $21, updated_at = NOW()
+        smtp_from_name = $20, smtp_from_email = $21, whatsapp_message = $22, updated_at = NOW()
     `;
 
     if (s.smtp_pass && s.smtp_pass !== '••••••••' && s.smtp_pass.trim() !== '') {
@@ -545,7 +612,11 @@ app.get('/api/donors', async (req, res) => {
         COUNT(r.id) as receipt_count,
         COALESCE(SUM(r.amount), 0) as total_contributed
       FROM donors d
-      LEFT JOIN users u ON (u.donor_id = d.id OR (LOWER(u.email) = LOWER(d.email) AND d.email != ''))
+      LEFT JOIN users u ON (
+        u.donor_id = d.id 
+        OR (d.phone IS NOT NULL AND d.phone != '' AND u.phone IS NOT NULL AND RIGHT(REGEXP_REPLACE(u.phone, '[^0-9]', '', 'g'), 10) = RIGHT(REGEXP_REPLACE(d.phone, '[^0-9]', '', 'g'), 10))
+        OR (d.email IS NOT NULL AND d.email != '' AND LOWER(u.email) = LOWER(d.email))
+      )
       LEFT JOIN receipts r ON r.donor_id = d.id
       GROUP BY d.id, u.id
       ORDER BY d.full_name ASC

@@ -188,34 +188,52 @@ export default function App() {
 
   // 4. MANUAL WHATSAPP SHARING
   const handleShareWhatsApp = (receipt) => {
-    const trustName = settings?.trust_name || 'Charitable Trust';
-    const formattedAmount = `${settings?.currency_symbol || '₹'} ${parseFloat(receipt.amount).toLocaleString('en-IN')}`;
-    const formattedDate = new Date(receipt.receipt_date).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
+    const trustName = settings?.trust_name || 'BRIDGE OF LOVE';
+    const formattedAmount = `${settings?.currency_symbol || '₹'} ${parseFloat(receipt.amount || 0).toLocaleString('en-IN')}`;
+    let formattedDate = '';
+    if (receipt.receipt_date) {
+      try {
+        formattedDate = new Date(receipt.receipt_date).toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        });
+      } catch (e) {
+        formattedDate = String(receipt.receipt_date);
+      }
+    }
 
     const pdfUrl = `${API_BASE}/receipts/${receipt.id}/pdf`;
+    const paymentModeStr = `${receipt.payment_mode || 'Cash'}${receipt.cheque_or_tx_ref ? ` (${receipt.cheque_or_tx_ref})` : ''}`;
 
-    const messageLines = [
-      `🙏 *Namaste ${receipt.donor_name}*,`,
-      ``,
-      `On behalf of *${trustName}*, we gratefully acknowledge the receipt of your contribution:`,
-      `📄 *Receipt No:* ${receipt.receipt_number}`,
-      `📅 *Date:* ${formattedDate}`,
-      `💰 *Amount:* ${formattedAmount}`,
-      `💳 *Payment Mode:* ${receipt.payment_mode} ${receipt.cheque_or_tx_ref ? `(${receipt.cheque_or_tx_ref})` : ''}`,
-      ``,
-      `📥 *Download Official e-Receipt PDF:*`,
-      `${pdfUrl}`,
-      ``,
-      `Thank you for your generosity and continuous support.`,
-      `Warm regards,`,
-      `*${trustName}*`,
-    ];
+    let template = settings?.whatsapp_message;
+    if (!template || !template.trim()) {
+      template = `🙏 *Namaste {donor_name}*,
 
-    const encodedText = encodeURIComponent(messageLines.join('\n'));
+On behalf of *{trust_name}*, we gratefully acknowledge the receipt of your contribution:
+📄 *Receipt No:* {receipt_no}
+📅 *Date:* {date}
+💰 *Amount:* {amount}
+💳 *Payment Mode:* {payment_mode}
+
+📥 *Download Official e-Receipt PDF:*
+{pdf_url}
+
+Thank you for your generosity and continuous support.
+Warm regards,
+*{trust_name}*`;
+    }
+
+    const finalMessage = template
+      .replace(/{donor_name}/g, receipt.donor_name || 'Valued Member / Donor')
+      .replace(/{trust_name}/g, trustName)
+      .replace(/{receipt_no}/g, receipt.receipt_number || '')
+      .replace(/{date}/g, formattedDate)
+      .replace(/{amount}/g, formattedAmount)
+      .replace(/{payment_mode}/g, paymentModeStr)
+      .replace(/{pdf_url}/g, pdfUrl);
+
+    const encodedText = encodeURIComponent(finalMessage);
     let rawPhone = receipt.donor_whatsapp || receipt.donor_phone || '';
     let cleanPhone = rawPhone.replace(/[^0-9]/g, '');
 

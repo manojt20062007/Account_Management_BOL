@@ -149,7 +149,7 @@ export default function DonorPortalView({
                   {user?.full_name || 'Member'}
                 </div>
                 <div style={{ fontSize: '11px', color: '#64748b' }}>
-                  {user?.email}
+                  {user?.phone ? `📱 ${user.phone}` : (user?.email || 'Member')}
                 </div>
               </div>
             </div>
@@ -745,8 +745,8 @@ export default function DonorPortalView({
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', background: '#f8fafc', borderRadius: '8px' }}>
                 <Mail size={18} style={{ color: '#003366' }} />
                 <div>
-                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>REGISTERED EMAIL</div>
-                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>{user?.email}</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>REGISTERED EMAIL (OPTIONAL)</div>
+                  <div style={{ fontSize: '14px', fontWeight: 600, color: '#0f172a' }}>{user?.email || 'Not provided (Optional)'}</div>
                 </div>
               </div>
 

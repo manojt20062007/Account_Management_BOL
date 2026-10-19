@@ -201,12 +201,23 @@ function generateReceiptPdf(receipt, settings = {}) {
       doc.rect(tableX, y, tableWidth, 24).fillColor('#ffffff').fill();
       doc.rect(tableX, y, tableWidth, 24).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
 
-      const formattedDate = new Date(receipt.receipt_date).toLocaleDateString('en-IN', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      });
-      let formattedTime = receipt.receipt_time;
+      let formattedDate = '';
+      if (receipt.receipt_date) {
+        try {
+          const d = new Date(receipt.receipt_date);
+          if (!isNaN(d.getTime())) {
+            formattedDate = d.toLocaleDateString('en-IN', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+            });
+          }
+        } catch (e) {
+          formattedDate = '';
+        }
+      }
+
+      let formattedTime = receipt.receipt_time || '';
       if (!formattedTime && receipt.created_at) {
         try {
           formattedTime = new Date(receipt.created_at).toLocaleTimeString('en-IN', {
@@ -216,22 +227,14 @@ function generateReceiptPdf(receipt, settings = {}) {
             hour12: true,
           });
         } catch (e) {
-          formattedTime = null;
+          formattedTime = '';
         }
-      }
-      if (!formattedTime) {
-        formattedTime = new Date().toLocaleTimeString('en-IN', {
-          timeZone: 'Asia/Kolkata',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true,
-        });
       }
 
       doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#0f172a');
-      doc.text(receipt.receipt_number, tableX + 12, y + 7);
-      doc.text(formattedDate, tableX + colWidth, y + 7, { align: 'center', width: colWidth });
-      doc.text(formattedTime, tableX + colWidth * 2, y + 7, { align: 'center', width: colWidth });
+      doc.text(receipt.receipt_number || '', tableX + 12, y + 7);
+      doc.text(formattedDate || '', tableX + colWidth, y + 7, { align: 'center', width: colWidth });
+      doc.text(formattedTime || '', tableX + colWidth * 2, y + 7, { align: 'center', width: colWidth });
       y += 24 + 10;
 
       // Helper function to draw table section
@@ -250,30 +253,32 @@ function generateReceiptPdf(receipt, settings = {}) {
           .text(label, tableX + 12, curY + 7);
 
         doc.font('Helvetica').fontSize(9).fillColor('#1e293b')
-          .text(value || '—', tableX + 140, curY + 7, { width: tableWidth - 150 });
+          .text(value || '', tableX + 140, curY + 7, { width: tableWidth - 150 });
 
         return curY + rowHeight;
       };
 
       // 5. Section: DONOR DETAILS
       y = drawBanner('DONOR DETAILS', y);
-      y = drawRow('Donor Name', receipt.donor_name, y, 26);
+      y = drawRow('Donor Name', receipt.donor_name || '', y, 26);
 
-      const contactLine = [receipt.donor_phone, receipt.donor_email].filter(Boolean).join('  /  ') || '—';
+      const contactLine = [receipt.donor_phone, receipt.donor_email].filter(Boolean).join('  /  ') || '';
       y = drawRow('Phone / Email', contactLine, y, 26);
-      y = drawRow('Address', receipt.donor_address || '—', y, 36);
+      y = drawRow('Address', receipt.donor_address || '', y, 36);
 
       y += 10;
 
       // 6. Section: DONATION DETAILS
       y = drawBanner('DONATION DETAILS', y);
 
-      const amtVal = `${parseFloat(receipt.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      const amtVal = (receipt.amount && !isNaN(parseFloat(receipt.amount)))
+        ? `${parseFloat(receipt.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+        : '';
       y = drawRow(`Amount (${settings.currency_code || 'INR'})`, amtVal, y, 26);
-      y = drawRow('Amount in words', receipt.amount_words, y, 28);
-      y = drawRow('Payment mode', receipt.payment_mode, y, 26);
+      y = drawRow('Amount in words', receipt.amount_words || '', y, 28);
+      y = drawRow('Payment mode', receipt.payment_mode || '', y, 26);
 
-      const refLine = [receipt.cheque_or_tx_ref, receipt.bank_name].filter(Boolean).join(' - ') || '—';
+      const refLine = [receipt.cheque_or_tx_ref, receipt.bank_name].filter(Boolean).join(' - ') || '';
       y = drawRow('Transaction / ref.', refLine, y, 26);
 
       y += 30;
@@ -653,3 +658,49 @@ module.exports = {
   generateReceiptPdf,
   generateAllAccountsPdf,
 };
+
+// If executed directly from command line (e.g. node services/pdfService.js)
+if (require.main === module) {
+  const sampleBlankReceipt = {
+    receipt_number: '',
+    receipt_date: '',
+    receipt_time: '',
+    donor_name: '',
+    donor_phone: '',
+    donor_email: '',
+    donor_address: '',
+    amount: '',
+    amount_words: '',
+    payment_mode: '',
+    cheque_or_tx_ref: '',
+    bank_name: '',
+  };
+
+  const sampleSettings = {
+    trust_name: 'BRIDGE OF LOVE',
+    tagline: 'Dedicated to Social Upliftment, Education & Healthcare',
+    currency_symbol: '₹',
+    currency_code: 'INR',
+    address: 'Subramanya Nagar, Kambar Street, Bye-Pass Road, Tiruttani – 631209, Tiruvallur District, Tamilnadu.',
+    signatory_name: 'Authorized Signatory',
+    signatory_title: 'Managing Trustee',
+  };
+
+  console.log('Generating sample bill without details...');
+  generateReceiptPdf(sampleBlankReceipt, sampleSettings)
+    .then((pdfBuffer) => {
+      const rootPath = path.join(__dirname, '../../sample_bill_without_details.pdf');
+      const localPath = path.join(__dirname, 'sample_bill_without_details.pdf');
+      fs.writeFileSync(rootPath, pdfBuffer);
+      fs.writeFileSync(localPath, pdfBuffer);
+      console.log('\n================================================================');
+      console.log('✓ Sample Bill Without Details generated successfully!');
+      console.log(`  File 1 (Root):   ${rootPath}`);
+      console.log(`  File 2 (Local):  ${localPath}`);
+      console.log(`  File size:       ${pdfBuffer.length} bytes`);
+      console.log('================================================================\n');
+    })
+    .catch((err) => {
+      console.error('Error generating sample bill:', err);
+    });
+}

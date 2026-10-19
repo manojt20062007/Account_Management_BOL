@@ -2,9 +2,51 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Settings, ShieldCheck, Mail, CheckCircle2, AlertTriangle, Key, 
   Server, Save, Eye, EyeOff, RotateCcw, Upload, FileText, Check, 
-  Sparkles, Send, MapPin, Phone, Building2, RefreshCw
+  Sparkles, Send, MapPin, Phone, Building2, RefreshCw, MessageSquare,
+  Copy, Smartphone
 } from 'lucide-react';
 import { API_BASE } from '../config/api';
+
+const DEFAULT_WHATSAPP_TEMPLATE = `🙏 *Namaste {donor_name}*,
+
+On behalf of *{trust_name}*, we gratefully acknowledge the receipt of your contribution:
+📄 *Receipt No:* {receipt_no}
+📅 *Date:* {date}
+💰 *Amount:* {amount}
+💳 *Payment Mode:* {payment_mode}
+
+📥 *Download Official e-Receipt PDF:*
+{pdf_url}
+
+Thank you for your generosity and continuous support.
+Warm regards,
+*{trust_name}*`;
+
+// Helper to format WhatsApp markdown (*bold* and URLs) for the live simulator preview
+const renderFormattedWhatsAppText = (text) => {
+  if (!text) return null;
+  const lines = text.split('\n');
+  return lines.map((line, lineIdx) => {
+    const parts = line.split(/(\*[^*]+\*|https?:\/\/[^\s]+)/g);
+    return (
+      <div key={lineIdx} style={{ minHeight: line.trim() ? 'auto' : '8px' }}>
+        {parts.map((part, partIdx) => {
+          if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+            return <strong key={partIdx}>{part.slice(1, -1)}</strong>;
+          }
+          if (part.startsWith('http://') || part.startsWith('https://')) {
+            return (
+              <span key={partIdx} style={{ color: '#027eb5', textDecoration: 'underline', wordBreak: 'break-all' }}>
+                {part}
+              </span>
+            );
+          }
+          return <span key={partIdx}>{part}</span>;
+        })}
+      </div>
+    );
+  });
+};
 
 export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, onLiveChange }) {
   const [formData, setFormData] = useState({ ...settings });
@@ -27,6 +69,33 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
   const [logoTimestamp, setLogoTimestamp] = useState(Date.now());
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [logoStatus, setLogoStatus] = useState(null);
+
+  // WhatsApp template state & helpers
+  const [copiedWhatsApp, setCopiedWhatsApp] = useState(false);
+
+  const insertVariable = (varTag) => {
+    const currentVal = formData.whatsapp_message !== undefined ? formData.whatsapp_message : DEFAULT_WHATSAPP_TEMPLATE;
+    const textarea = document.getElementById('whatsapp-template-textarea');
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const nextVal = currentVal.substring(0, start) + varTag + currentVal.substring(end);
+      handleChange('whatsapp_message', nextVal);
+      setTimeout(() => {
+        textarea.focus();
+        textarea.setSelectionRange(start + varTag.length, start + varTag.length);
+      }, 50);
+    } else {
+      handleChange('whatsapp_message', currentVal + ' ' + varTag);
+    }
+  };
+
+  const handleCopyWhatsApp = () => {
+    const text = formData.whatsapp_message || DEFAULT_WHATSAPP_TEMPLATE;
+    navigator.clipboard.writeText(text);
+    setCopiedWhatsApp(true);
+    setTimeout(() => setCopiedWhatsApp(false), 2000);
+  };
   
   const fileInputRef = useRef(null);
 
@@ -755,7 +824,239 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
           </div>
         )}
 
-        {/* 4. Free SMTP Automated Email Delivery Engine */}
+        {/* 4. WhatsApp Sharing & Donor Message Template Card */}
+        <div className="card" style={{ border: '1px solid #bbf7d0', boxShadow: '0 4px 14px rgba(37, 211, 102, 0.08)' }}>
+          <div className="card-header" style={{ background: '#f0fdf4', borderBottom: '1px solid #bbf7d0' }}>
+            <div className="card-title">
+              <MessageSquare size={19} color="#16a34a" />
+              <span style={{ color: '#166534' }}>WhatsApp Receipt Message & Acknowledgment Template</span>
+            </div>
+            <span style={{ fontSize: '12px', color: '#15803d', fontWeight: 600 }}>
+              ● Custom template dispatched when sharing receipts via WhatsApp
+            </span>
+          </div>
+
+          <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <p style={{ margin: 0, fontSize: '13px', color: '#475569', lineHeight: 1.5 }}>
+              Customize the message sent to donors and members when you click the <strong>Share on WhatsApp</strong> button on any receipt. You can insert dynamic variables that automatically populate each donor's details.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1.2fr) minmax(300px, 0.8fr)', gap: '24px', alignItems: 'start' }}>
+              {/* Left Column: Template Editor & Dynamic Variable Tags */}
+              <div>
+                <div style={{ marginBottom: '12px' }}>
+                  <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontWeight: 700, color: '#0f172a' }}>Message Template Editor</span>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>Supports WhatsApp *bold*, _italic_, and emojis</span>
+                  </label>
+                  <textarea
+                    id="whatsapp-template-textarea"
+                    rows={12}
+                    className="form-control"
+                    placeholder="Enter your customized WhatsApp message template..."
+                    value={formData.whatsapp_message !== undefined ? formData.whatsapp_message : DEFAULT_WHATSAPP_TEMPLATE}
+                    onChange={(e) => handleChange('whatsapp_message', e.target.value)}
+                    style={{
+                      fontFamily: "Consolas, Monaco, 'Segoe UI', monospace",
+                      fontSize: '13px',
+                      lineHeight: 1.6,
+                      borderRadius: '8px',
+                      borderColor: '#86efac',
+                      background: '#ffffff',
+                      padding: '12px 14px'
+                    }}
+                  />
+                </div>
+
+                {/* Dynamic Variables Chips */}
+                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '14px' }}>
+                  <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#334155', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Click variable chip to insert into message:
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {[
+                      { tag: '{donor_name}', label: 'Donor Name' },
+                      { tag: '{trust_name}', label: 'Trust Name' },
+                      { tag: '{receipt_no}', label: 'Receipt No.' },
+                      { tag: '{amount}', label: 'Amount' },
+                      { tag: '{date}', label: 'Date' },
+                      { tag: '{payment_mode}', label: 'Payment Mode' },
+                      { tag: '{pdf_url}', label: 'PDF Download Link' },
+                    ].map(({ tag, label }) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => insertVariable(tag)}
+                        style={{
+                          background: '#ecfdf5',
+                          border: '1px solid #a7f3d0',
+                          borderRadius: '6px',
+                          padding: '4px 9px',
+                          fontSize: '11.5px',
+                          fontWeight: 600,
+                          color: '#065f46',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          transition: 'all 0.15s ease'
+                        }}
+                        title={`Click to insert ${tag} into message`}
+                      >
+                        <span style={{ color: '#047857', fontWeight: 800 }}>+</span>
+                        <code>{tag}</code>
+                        <span style={{ color: '#64748b', fontSize: '10px' }}>({label})</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Actions: Reset to Default & Copy */}
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    onClick={() => handleChange('whatsapp_message', DEFAULT_WHATSAPP_TEMPLATE)}
+                    title="Restore default recommended WhatsApp message"
+                  >
+                    <RotateCcw size={13} />
+                    <span>Reset to Default Template</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    onClick={handleCopyWhatsApp}
+                  >
+                    {copiedWhatsApp ? <Check size={13} color="#059669" /> : <Copy size={13} />}
+                    <span>{copiedWhatsApp ? 'Template Copied!' : 'Copy Template Text'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Right Column: Live WhatsApp Chat Bubble Preview */}
+              <div>
+                <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                  <Smartphone size={15} color="#16a34a" />
+                  <span style={{ fontWeight: 700, color: '#0f172a' }}>Live WhatsApp Screen Preview</span>
+                </label>
+
+                {/* Phone Simulator Frame */}
+                <div style={{
+                  background: '#efeae2',
+                  border: '2px solid #cbd5e1',
+                  borderRadius: '16px',
+                  overflow: 'hidden',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                  maxWidth: '380px',
+                  margin: '0 auto',
+                  backgroundImage: 'radial-gradient(rgba(0,0,0,0.04) 1px, transparent 1px)',
+                  backgroundSize: '16px 16px'
+                }}>
+                  {/* WhatsApp Top Header Bar */}
+                  <div style={{
+                    background: '#075e54',
+                    color: '#ffffff',
+                    padding: '10px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      background: '#ffffff',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      <img
+                        src="/logo.png"
+                        alt="Trust"
+                        style={{ width: '28px', height: '28px', objectFit: 'contain' }}
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                      />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {formData.trust_name || 'BRIDGE OF LOVE'}
+                      </div>
+                      <div style={{ fontSize: '10.5px', color: '#cbfadb', opacity: 0.9 }}>
+                        Online • Verified Trust
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Chat Area with Message Bubble */}
+                  <div style={{ padding: '16px 12px', minHeight: '260px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+                    {/* Date Pill in Center */}
+                    <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+                      <span style={{
+                        background: 'rgba(255,255,255,0.85)',
+                        color: '#54656f',
+                        fontSize: '10.5px',
+                        padding: '3px 10px',
+                        borderRadius: '6px',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.06)',
+                        fontWeight: 600
+                      }}>
+                        TODAY
+                      </span>
+                    </div>
+
+                    {/* Outbound Sent Message Bubble (Green) */}
+                    <div style={{
+                      background: '#d9fdd3',
+                      color: '#111b21',
+                      padding: '10px 12px 6px 12px',
+                      borderRadius: '8px 0px 8px 8px',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.13)',
+                      maxWidth: '92%',
+                      alignSelf: 'flex-end',
+                      position: 'relative',
+                      fontSize: '12.5px',
+                      lineHeight: 1.45,
+                      wordBreak: 'break-word',
+                      whiteSpace: 'pre-wrap',
+                      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+                    }}>
+                      {/* Render parsed text */}
+                      {renderFormattedWhatsAppText(
+                        (formData.whatsapp_message !== undefined ? formData.whatsapp_message : DEFAULT_WHATSAPP_TEMPLATE)
+                          .replace(/{donor_name}/g, 'Dr. Anand V. Kulkarni')
+                          .replace(/{trust_name}/g, formData.trust_name || 'BRIDGE OF LOVE')
+                          .replace(/{receipt_no}/g, `${formData.receipt_prefix || 'TR/REC'}-1001`)
+                          .replace(/{date}/g, new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }))
+                          .replace(/{amount}/g, `${formData.currency_symbol || '₹'} 25,000`)
+                          .replace(/{payment_mode}/g, 'UPI (GPay / HDFC Bank)')
+                          .replace(/{pdf_url}/g, 'https://bridgeoflove.org/api/receipts/1001/pdf')
+                      )}
+
+                      {/* Message Timestamp & Blue Read Double-Ticks */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'flex-end',
+                        gap: '3px',
+                        fontSize: '10px',
+                        color: '#667781',
+                        marginTop: '4px'
+                      }}>
+                        <span>10:30 AM</span>
+                        <span style={{ color: '#53bdeb', fontWeight: 'bold' }}>✓✓</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 5. Free SMTP Automated Email Delivery Engine */}
         <div className="card">
           <div className="card-header">
             <div className="card-title">
