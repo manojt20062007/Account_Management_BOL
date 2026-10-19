@@ -160,26 +160,40 @@ export default function NewReceiptModal({
 
                   {donorMode === 'existing' && (
                     <div className="form-group" style={{ marginBottom: '14px' }}>
+                      <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Select Registered Member / Donor</span>
+                        <span style={{ fontSize: '11px', color: '#059669', fontWeight: 600 }}>
+                          {donors.filter(d => d.is_registered).length} Registered Members
+                        </span>
+                      </label>
                       <select
                         className="form-control"
                         value={selectedDonorId}
                         onChange={handleDonorSelect}
+                        style={{ border: '1.5px solid #003366' }}
                       >
-                        <option value="">-- Choose registered donor or pick from list --</option>
-                        {donors.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.full_name} {d.phone ? `— ${d.phone}` : ''}
-                          </option>
-                        ))}
+                        <option value="">-- Choose registered member from list --</option>
+                        {donors
+                          .slice()
+                          .sort((a, b) => (b.is_registered ? 1 : 0) - (a.is_registered ? 1 : 0))
+                          .map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.is_registered ? '✓ [REGISTERED] ' : ''}{d.full_name} {d.phone ? `(${d.phone})` : ''} {d.email ? `— ${d.email}` : ''}
+                            </option>
+                          ))}
                       </select>
                     </div>
                   )}
 
                   <div className="form-grid">
                     <div className="form-group">
-                      <label className="form-label">
-                        <span>Donor Name</span>
-                        <span className="required">*</span>
+                      <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>
+                          Donor Name <span className="required">*</span>
+                        </span>
+                        <span style={{ fontSize: '11px', background: '#e0f2fe', color: '#0284c7', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                          ✎ Modifiable on Receipt
+                        </span>
                       </label>
                       <input
                         type="text"
@@ -188,7 +202,11 @@ export default function NewReceiptModal({
                         required
                         value={formData.donor_name}
                         onChange={(e) => setFormData({ ...formData, donor_name: e.target.value })}
+                        style={{ borderColor: '#0284c7' }}
                       />
+                      <span className="form-help" style={{ color: '#0284c7' }}>
+                        ✎ You can modify or reformat the name printed on this bill as needed.
+                      </span>
                     </div>
 
                     <div className="form-group">
@@ -386,7 +404,25 @@ export default function NewReceiptModal({
                         </div>
                       )}
                     </div>
-                    <img src="/mother.png" alt="Mother Teresa" style={{ width: '54px', height: '62px', objectFit: 'contain' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                    <div style={{
+                      width: '54px',
+                      height: '66px',
+                      borderRadius: '50%',
+                      border: '1.5px solid #003366',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: '#ffffff',
+                      flexShrink: 0
+                    }}>
+                      <img
+                        src="/mother.png"
+                        alt="Mother Teresa"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={(e) => { e.target.parentElement.style.display = 'none'; }}
+                      />
+                    </div>
                   </div>
 
                   <div style={{ background: '#f1f5f9', color: '#003366', textAlign: 'center', fontWeight: 'bold', fontSize: '14px', padding: '6px', marginBottom: '14px' }}>

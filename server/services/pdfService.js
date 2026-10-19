@@ -66,7 +66,26 @@ function generateReceiptPdf(receipt, settings = {}) {
         doc.image(LOGO_PATH, margin + 12, y, { width: logoWidth, height: logoHeight });
       }
       if (fs.existsSync(MOTHER_PATH)) {
-        doc.image(MOTHER_PATH, 455, y - 10, { width: 95, height: 110 });
+        const motherX = 460;
+        const motherY = y - 8;
+        const motherW = 98;
+        const motherH = 100;
+        const centerX = motherX + motherW / 2;
+        const centerY = motherY + motherH / 2;
+        const radiusX = motherW / 2;
+        const radiusY = motherH / 2;
+
+        // Clip image into elegant oval cameo
+        doc.save();
+        doc.ellipse(centerX, centerY, radiusX, radiusY).clip();
+        doc.image(MOTHER_PATH, 460, 34, { width: motherW, height: motherH });
+        doc.restore();
+
+        // Draw elegant Navy oval shape border
+        doc.ellipse(centerX, centerY, 45, 48)
+          .lineWidth(1.5)
+          .strokeColor('#003366')
+          .stroke();
       }
 
       // Title & Mottos (100% Dynamic) with emblems before and next to trust name

@@ -6,7 +6,9 @@ export default function TopBar({
   onExportAllPdf, 
   settings, 
   activeTab,
-  onToggleMobileMenu 
+  onToggleMobileMenu,
+  currentUser,
+  onLogout,
 }) {
   const currentDate = new Date().toLocaleDateString('en-IN', {
     weekday: 'short',
@@ -84,6 +86,57 @@ export default function TopBar({
           <span className="btn-text-desktop">Issue Member Receipt</span>
           <span className="btn-text-mobile">+ Receipt</span>
         </button>
+
+        {/* User Account / Admin Badge & Logout */}
+        {currentUser && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: '6px' }}>
+            <div style={{
+              background: '#f1f5f9',
+              padding: '5px 10px',
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '12px'
+            }}>
+              <span style={{
+                background: currentUser.role === 'admin' ? '#d97706' : '#003366',
+                color: '#ffffff',
+                padding: '2px 6px',
+                borderRadius: '4px',
+                fontSize: '10.5px',
+                fontWeight: 700,
+                textTransform: 'uppercase'
+              }}>
+                {currentUser.role || 'User'}
+              </span>
+              <span style={{ fontWeight: 600, color: '#334155', maxWidth: '120px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {currentUser.full_name}
+              </span>
+            </div>
+
+            {onLogout && (
+              <button
+                type="button"
+                onClick={onLogout}
+                style={{
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '6px',
+                  padding: '6px 10px',
+                  fontSize: '11.5px',
+                  fontWeight: 600,
+                  color: '#64748b',
+                  cursor: 'pointer'
+                }}
+                title="Sign out of current account"
+              >
+                Sign Out
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </header>
   );

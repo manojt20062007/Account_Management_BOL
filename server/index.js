@@ -8,12 +8,280 @@ const { query, initDatabase } = require('./db');
 const { numberToWordsINR } = require('./utils/numberToWords');
 const { generateReceiptPdf, generateAllAccountsPdf } = require('./services/pdfService');
 const { sendReceiptEmail, verifySmtpConnection } = require('./services/mailerService');
+const { hashPassword, verifyPassword, generateToken, verifyToken } = require('./utils/auth');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// Auth Token Verification Middleware
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : req.query.token;
+  if (!token) {
+    return res.status(401).json({ success: false, error: 'Authentication required' });
+  }
+  const decoded = verifyToken(token);
+  if (!decoded) {
+    return res.status(403).json({ success: false, error: 'Invalid or expired session token' });
+  }
+  req.user = decoded;
+  next();
+}
+
+// ---------------------------------------------------------------------------
+// 0. AUTHENTICATION & USER MANAGEMENT (SIGNUP & LOGIN - NO OTP)
+// ---------------------------------------------------------------------------
+
+// Signup: Personal info, no OTP required, instantly signs in & registers as donor
+app.post('/api/auth/signup', async (req, res) => {
+  try {
+    const {
+      full_name,
+      email,
+      password,
+      phone = '',
+      whatsapp = '',
+      address = '',
+      pan_or_id = '',
+    } = req.body;
+
+    if (!full_name || !full_name.trim()) {
+      return res.status(400).json({ success: false, error: 'Full Name is required' });
+    }
+    if (!email || !email.trim()) {
+      return res.status(400).json({ success: false, error: 'Valid Email Address is required' });
+    }
+    if (!password || password.length < 4) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 4 characters long' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = full_name.trim();
+
+    // Check if user account already exists
+    const existingUser = await query('SELECT id FROM users WHERE LOWER(email) = $1', [cleanEmail]);
+    if (existingUser.rows.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'An account with this email already exists. Please sign in instead.',
+      });
+    }
+
+    // Link or create matching entry in donors table
+    let donorId = null;
+    const existingDonor = await query(
+      `SELECT id FROM donors WHERE LOWER(email) = $1 OR (phone = $2 AND $2 != '') LIMIT 1`,
+      [cleanEmail, phone.trim()]
+    );
+
+    if (existingDonor.rows.length > 0) {
+      donorId = existingDonor.rows[0].id;
+      await query(`
+        UPDATE donors 
+        SET full_name = $1, 
+            phone = COALESCE(NULLIF($2, ''), phone), 
+            whatsapp = COALESCE(NULLIF($3, ''), whatsapp), 
+            address = COALESCE(NULLIF($4, ''), address), 
+            pan_or_id = COALESCE(NULLIF($5, ''), pan_or_id),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $6
+      `, [cleanName, phone.trim(), whatsapp.trim() || phone.trim(), address.trim(), pan_or_id.trim().toUpperCase(), donorId]);
+    } else {
+      const newDonor = await query(`
+        INSERT INTO donors (full_name, email, phone, whatsapp, address, pan_or_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id
+      `, [cleanName, cleanEmail, phone.trim(), whatsapp.trim() || phone.trim(), address.trim(), pan_or_id.trim().toUpperCase()]);
+      donorId = newDonor.rows[0].id;
+    }
+
+    // Hash password & create user record
+    const { hash, salt } = hashPassword(password);
+    const insertUser = await query(`
+      INSERT INTO users (full_name, email, phone, whatsapp, address, pan_or_id, role, donor_id, password_hash, password_salt)
+      VALUES ($1, $2, $3, $4, $5, $6, 'donor', $7, $8, $9)
+      RETURNING id, full_name, email, phone, whatsapp, address, pan_or_id, role, donor_id, created_at
+    `, [cleanName, cleanEmail, phone.trim(), whatsapp.trim() || phone.trim(), address.trim(), pan_or_id.trim().toUpperCase(), donorId, hash, salt]);
+
+    const user = insertUser.rows[0];
+    await query('UPDATE donors SET user_id = $1 WHERE id = $2', [user.id, donorId]);
+
+    const token = generateToken(user.id, user.role);
+
+    res.json({
+      success: true,
+      message: 'Account created and signed in successfully!',
+      token,
+      user,
+    });
+  } catch (err) {
+    console.error('Error during signup:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Login
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, error: 'Email and password are required' });
+    }
+
+    const cleanIdentifier = email.trim().toLowerCase();
+    const result = await query(
+      'SELECT * FROM users WHERE LOWER(email) = $1 OR phone = $2 LIMIT 1',
+      [cleanIdentifier, email.trim()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password' });
+    }
+
+    const user = result.rows[0];
+    const isValid = verifyPassword(password, user.password_hash, user.password_salt);
+    if (!isValid) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password' });
+    }
+
+    const token = generateToken(user.id, user.role);
+    const userSafe = {
+      id: user.id,
+      full_name: user.full_name,
+      email: user.email,
+      phone: user.phone,
+      whatsapp: user.whatsapp,
+      address: user.address,
+      pan_or_id: user.pan_or_id,
+      role: user.role,
+      donor_id: user.donor_id,
+      created_at: user.created_at,
+    };
+
+    res.json({
+      success: true,
+      message: 'Signed in successfully',
+      token,
+      user: userSafe,
+    });
+  } catch (err) {
+    console.error('Error during login:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Profile / Current Session
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
+  try {
+    const result = await query(
+      'SELECT id, full_name, email, phone, whatsapp, address, pan_or_id, role, donor_id, created_at FROM users WHERE id = $1',
+      [req.user.userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    res.json({ success: true, user: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Member / Donor Portal Dashboard: Payments, Months Paid, Download Bills
+app.get('/api/user/portal', authenticateToken, async (req, res) => {
+  try {
+    const userRes = await query('SELECT * FROM users WHERE id = $1', [req.user.userId]);
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+    const user = userRes.rows[0];
+
+    // Find all receipts matching this member by donor_id, email, or phone
+    const receiptsRes = await query(`
+      SELECT * FROM receipts 
+      WHERE (donor_id IS NOT NULL AND donor_id = $1)
+         OR (LOWER(donor_email) = LOWER($2) AND $2 != '')
+         OR (donor_phone = $3 AND $3 != '')
+      ORDER BY receipt_date DESC, id DESC
+    `, [user.donor_id, user.email, user.phone || '']);
+
+    const receipts = receiptsRes.rows;
+
+    // Metrics
+    const totalContributed = receipts.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
+    const totalReceipts = receipts.length;
+
+    const currentYear = new Date().getFullYear();
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    const currentYearReceipts = receipts.filter(r => {
+      const d = new Date(r.receipt_date);
+      return d.getFullYear() === currentYear;
+    });
+
+    const yearContributed = currentYearReceipts.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
+
+    const monthlyBreakdown = months.map((monthName, idx) => {
+      const monthNum = idx + 1;
+      const monthReceipts = currentYearReceipts.filter(r => {
+        const d = new Date(r.receipt_date);
+        return (d.getMonth() + 1) === monthNum;
+      });
+
+      const totalPaid = monthReceipts.reduce((s, r) => s + parseFloat(r.amount || 0), 0);
+      return {
+        month: monthName,
+        monthIndex: idx,
+        year: currentYear,
+        isPaid: monthReceipts.length > 0,
+        amountPaid: totalPaid,
+        receiptCount: monthReceipts.length,
+        receipts: monthReceipts.map(r => ({
+          id: r.id,
+          receipt_number: r.receipt_number,
+          receipt_date: r.receipt_date,
+          amount: parseFloat(r.amount),
+          payment_mode: r.payment_mode,
+        })),
+      };
+    });
+
+    const monthsPaidCount = monthlyBreakdown.filter(m => m.isPaid).length;
+
+    res.json({
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          full_name: user.full_name,
+          email: user.email,
+          phone: user.phone,
+          whatsapp: user.whatsapp,
+          address: user.address,
+          pan_or_id: user.pan_or_id,
+          role: user.role,
+        },
+        summary: {
+          totalContributed,
+          totalReceipts,
+          yearContributed,
+          monthsPaidCount,
+          currentYear,
+        },
+        monthlyBreakdown,
+        receipts,
+      },
+    });
+  } catch (err) {
+    console.error('Error fetching member portal data:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // ---------------------------------------------------------------------------
 // 1. DASHBOARD & STATS
@@ -264,18 +532,22 @@ app.post('/api/heads', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// 4. DONORS
+// 4. DONORS (WITH REGISTERED MEMBER STATUS)
 // ---------------------------------------------------------------------------
 app.get('/api/donors', async (req, res) => {
   try {
     const result = await query(`
       SELECT 
         d.*,
+        u.id as user_account_id,
+        u.email as user_email,
+        (u.id IS NOT NULL) as is_registered,
         COUNT(r.id) as receipt_count,
         COALESCE(SUM(r.amount), 0) as total_contributed
       FROM donors d
+      LEFT JOIN users u ON (u.donor_id = d.id OR (LOWER(u.email) = LOWER(d.email) AND d.email != ''))
       LEFT JOIN receipts r ON r.donor_id = d.id
-      GROUP BY d.id
+      GROUP BY d.id, u.id
       ORDER BY d.full_name ASC
     `);
     res.json({ success: true, data: result.rows });

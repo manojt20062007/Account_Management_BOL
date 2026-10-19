@@ -127,12 +127,25 @@ export default function ViewReceiptModal({ receipt, settings, isOpen, onClose, o
                   Tiruttani – 631209, Tiruvallur District, Tamilnadu.
                 </div>
               </div>
-              <img
-                src="/mother.png"
-                alt="Mother Teresa"
-                style={{ width: '85px', height: '95px', objectFit: 'contain' }}
-                onError={(e) => { e.target.style.display = 'none'; }}
-              />
+              <div style={{
+                width: '85px',
+                height: '104px',
+                borderRadius: '50%',
+                border: '1.5px solid #003366',
+                overflow: 'hidden',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#ffffff',
+                flexShrink: 0
+              }}>
+                <img
+                  src="/mother.png"
+                  alt="Mother Teresa"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={(e) => { e.target.parentElement.style.display = 'none'; }}
+                />
+              </div>
             </div>
 
             {/* Banner: PAYMENT RECEIPT */}

@@ -9,6 +9,9 @@ import HeadsView from './components/HeadsView';
 import SettingsView from './components/SettingsView';
 import NewReceiptModal from './components/NewReceiptModal';
 import ViewReceiptModal from './components/ViewReceiptModal';
+import AuthView from './components/AuthView';
+import DonorPortalView from './components/DonorPortalView';
+import AdminLoginView from './components/AdminLoginView';
 
 import { API_BASE } from './config/api';
 
@@ -24,6 +27,45 @@ export default function App() {
   const activeSettings = liveSettings || settings;
   const [filterState, setFilterState] = useState({ search: '', head_id: '', payment_mode: '' });
 
+  // URL-based Navigation State (/admin vs /)
+  const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
+  const [currentHash, setCurrentHash] = useState(() => window.location.hash);
+
+  useEffect(() => {
+    const handleUrlChange = () => {
+      setCurrentPath(window.location.pathname);
+      setCurrentHash(window.location.hash);
+    };
+    window.addEventListener('popstate', handleUrlChange);
+    window.addEventListener('hashchange', handleUrlChange);
+    return () => {
+      window.removeEventListener('popstate', handleUrlChange);
+      window.removeEventListener('hashchange', handleUrlChange);
+    };
+  }, []);
+
+  const navigateTo = (path) => {
+    window.history.pushState({}, '', path);
+    setCurrentPath(path);
+    setCurrentHash(window.location.hash);
+  };
+
+  const isAdminRoute = currentPath.startsWith('/admin') || currentHash === '#admin';
+
+  // User Authentication & Session State
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem('bol_auth_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+
+  const [authToken, setAuthToken] = useState(() => {
+    return localStorage.getItem('bol_auth_token') || null;
+  });
+
   const [isNewReceiptOpen, setIsNewReceiptOpen] = useState(false);
   const [viewingReceipt, setViewingReceipt] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
@@ -31,6 +73,22 @@ export default function App() {
   const showToast = (msg, type = 'info') => {
     setToastMessage({ msg, type });
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleAuthSuccess = (user, token) => {
+    setCurrentUser(user);
+    setAuthToken(token);
+    localStorage.setItem('bol_auth_user', JSON.stringify(user));
+    localStorage.setItem('bol_auth_token', token);
+    showToast(`Welcome ${user.full_name}!`, 'success');
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setAuthToken(null);
+    localStorage.removeItem('bol_auth_user');
+    localStorage.removeItem('bol_auth_token');
+    showToast('Signed out successfully', 'info');
   };
 
   // 1. Initial Load of Data
@@ -242,173 +300,355 @@ export default function App() {
     loadHeads();
   };
 
-  return (
-    <div className="app-container">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          right: '24px',
-          zIndex: 200,
-          background: toastMessage.type === 'error' ? '#ef4444' : '#0f172a',
-          color: '#ffffff',
-          padding: '12px 20px',
-          borderRadius: '10px',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
-          fontSize: '13px',
-          fontWeight: 600,
-        }}>
-          {toastMessage.msg}
-        </div>
-      )}
+  // =========================================================================
+  // ROUTE 1: ADMIN ROUTE (/admin or /#admin)
+  // Strictly for Trust Administration. In URL /admin it goes to Admin Login Page
+  // =========================================================================
+  if (isAdminRoute) {
+    // If not logged in as Admin, show dedicated Admin Login View
+    if (!currentUser || currentUser.role !== 'admin') {
+      return (
+        <>
+          {toastMessage && (
+            <div style={{
+              position: 'fixed',
+              top: '20px',
+              right: '24px',
+              zIndex: 200,
+              background: toastMessage.type === 'error' ? '#ef4444' : '#0f172a',
+              color: '#ffffff',
+              padding: '12px 20px',
+              borderRadius: '10px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+              fontSize: '13px',
+              fontWeight: 600,
+            }}>
+              {toastMessage.msg}
+            </div>
+          )}
+          <AdminLoginView
+            onAuthSuccess={(user, token) => {
+              handleAuthSuccess(user, token);
+              navigateTo('/admin');
+            }}
+            settings={activeSettings}
+            onGoToMemberPortal={() => navigateTo('/')}
+          />
+        </>
+      );
+    }
 
-      {/* Main Sidebar (Desktop Pinned + Mobile Slide-out Drawer) */}
-      <Sidebar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onExportAllPdf={handleExportAllPdf}
-        stats={stats}
-        settings={activeSettings}
-        isOpenMobile={isMobileMenuOpen}
-        onCloseMobile={() => setIsMobileMenuOpen(false)}
-      />
+    // Admin is logged in and visiting /admin: Render full Admin Dashboard
+    return (
+      <div className="app-container">
+        {toastMessage && (
+          <div style={{
+            position: 'fixed',
+            top: '20px',
+            right: '24px',
+            zIndex: 200,
+            background: toastMessage.type === 'error' ? '#ef4444' : '#0f172a',
+            color: '#ffffff',
+            padding: '12px 20px',
+            borderRadius: '10px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+            fontSize: '13px',
+            fontWeight: 600,
+          }}>
+            {toastMessage.msg}
+          </div>
+        )}
 
-      {/* Main Workspace */}
-      <div className="app-main">
-        <TopBar
+        {/* Main Sidebar */}
+        <Sidebar
           activeTab={activeTab}
-          settings={activeSettings}
-          onOpenNewReceipt={() => setIsNewReceiptOpen(true)}
+          setActiveTab={setActiveTab}
           onExportAllPdf={handleExportAllPdf}
-          onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          stats={stats}
+          settings={activeSettings}
+          isOpenMobile={isMobileMenuOpen}
+          onCloseMobile={() => setIsMobileMenuOpen(false)}
         />
 
-        {activeTab === 'dashboard' && (
-          <DashboardView
-            stats={stats}
+        {/* Main Workspace */}
+        <div className="app-main">
+          <TopBar
+            activeTab={activeTab}
             settings={activeSettings}
             onOpenNewReceipt={() => setIsNewReceiptOpen(true)}
             onExportAllPdf={handleExportAllPdf}
-            onViewReceipt={(r) => setViewingReceipt(r)}
-            onShareWhatsApp={handleShareWhatsApp}
-            setActiveTab={setActiveTab}
-          />
-        )}
-
-        {activeTab === 'receipts' && (
-          <ReceiptsView
-            receipts={receipts}
-            heads={heads}
-            settings={activeSettings}
-            filterState={filterState}
-            onFilterChange={handleFilterChange}
-            onOpenNewReceipt={() => setIsNewReceiptOpen(true)}
-            onExportAllPdf={handleExportAllPdf}
-            onViewReceipt={(r) => setViewingReceipt(r)}
-            onShareWhatsApp={handleShareWhatsApp}
-            onResendEmail={handleResendEmail}
-          />
-        )}
-
-        {activeTab === 'donors' && (
-          <DonorsView
-            donors={donors}
-            settings={activeSettings}
-            onAddDonor={handleAddDonor}
-          />
-        )}
-
-        {activeTab === 'heads' && (
-          <HeadsView
-            heads={heads}
-            onAddHead={handleAddHead}
-          />
-        )}
-
-        {activeTab === 'settings' && (
-          <SettingsView
-            settings={settings}
-            onSaveSettings={async (updatedSettings) => {
-              await handleSaveSettings(updatedSettings);
-              setLiveSettings(null);
+            onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            currentUser={currentUser}
+            onLogout={() => {
+              handleLogout();
+              navigateTo('/admin');
             }}
-            onLiveChange={(previewData) => setLiveSettings(previewData)}
-            onVerifySmtp={handleVerifySmtp}
           />
-        )}
-      </div>
 
-      {/* Issue New Receipt Modal */}
-      <NewReceiptModal
-        isOpen={isNewReceiptOpen}
-        onClose={() => setIsNewReceiptOpen(false)}
-        onSubmit={handleCreateReceipt}
-        heads={heads}
-        donors={donors}
-        settings={activeSettings}
-      />
-
-      {/* Printable Receipt Preview Modal */}
-      <ViewReceiptModal
-        isOpen={Boolean(viewingReceipt)}
-        receipt={viewingReceipt}
-        settings={activeSettings}
-        onClose={() => setViewingReceipt(null)}
-        onShareWhatsApp={handleShareWhatsApp}
-      />
-
-      {/* Modern Touch-Optimized Mobile Bottom Navigation Bar */}
-      <nav className="mobile-bottom-nav" aria-label="Mobile Navigation">
-        <button
-          type="button"
-          className={`mobile-nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }}
-        >
-          <LayoutDashboard size={20} />
-          <span>Dashboard</span>
-        </button>
-
-        <button
-          type="button"
-          className={`mobile-nav-item ${activeTab === 'receipts' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('receipts'); setIsMobileMenuOpen(false); }}
-        >
-          <Receipt size={20} />
-          <span>Daybook</span>
-          {stats?.totalReceipts > 0 && (
-            <span className="mobile-nav-badge">{stats.totalReceipts}</span>
+          {activeTab === 'dashboard' && (
+            <DashboardView
+              stats={stats}
+              settings={activeSettings}
+              onOpenNewReceipt={() => setIsNewReceiptOpen(true)}
+              onExportAllPdf={handleExportAllPdf}
+              onViewReceipt={(r) => setViewingReceipt(r)}
+              onShareWhatsApp={handleShareWhatsApp}
+              setActiveTab={setActiveTab}
+            />
           )}
-        </button>
 
-        {/* Center Prominent Floating Action Trigger */}
-        <button
-          type="button"
-          className="mobile-nav-fab"
-          onClick={() => { setIsNewReceiptOpen(true); setIsMobileMenuOpen(false); }}
-          title="Issue New Member Receipt"
-        >
-          <Plus size={24} />
-        </button>
+          {activeTab === 'receipts' && (
+            <ReceiptsView
+              receipts={receipts}
+              heads={heads}
+              settings={activeSettings}
+              filterState={filterState}
+              onFilterChange={handleFilterChange}
+              onOpenNewReceipt={() => setIsNewReceiptOpen(true)}
+              onExportAllPdf={handleExportAllPdf}
+              onViewReceipt={(r) => setViewingReceipt(r)}
+              onShareWhatsApp={handleShareWhatsApp}
+              onResendEmail={handleResendEmail}
+            />
+          )}
 
-        <button
-          type="button"
-          className={`mobile-nav-item ${activeTab === 'donors' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('donors'); setIsMobileMenuOpen(false); }}
-        >
-          <Users size={20} />
-          <span>Members</span>
-        </button>
+          {activeTab === 'donors' && (
+            <DonorsView
+              donors={donors}
+              settings={activeSettings}
+              onAddDonor={handleAddDonor}
+            />
+          )}
 
+          {activeTab === 'heads' && (
+            <HeadsView
+              heads={heads}
+              onAddHead={handleAddHead}
+            />
+          )}
+
+          {activeTab === 'settings' && (
+            <SettingsView
+              settings={settings}
+              onSaveSettings={async (updatedSettings) => {
+                await handleSaveSettings(updatedSettings);
+                setLiveSettings(null);
+              }}
+              onLiveChange={(previewData) => setLiveSettings(previewData)}
+              onVerifySmtp={handleVerifySmtp}
+            />
+          )}
+        </div>
+
+        {/* Issue New Receipt Modal */}
+        <NewReceiptModal
+          isOpen={isNewReceiptOpen}
+          onClose={() => setIsNewReceiptOpen(false)}
+          onSubmit={handleCreateReceipt}
+          heads={heads}
+          donors={donors}
+          settings={activeSettings}
+        />
+
+        {/* Printable Receipt Preview Modal */}
+        <ViewReceiptModal
+          isOpen={Boolean(viewingReceipt)}
+          receipt={viewingReceipt}
+          settings={activeSettings}
+          onClose={() => setViewingReceipt(null)}
+          onShareWhatsApp={handleShareWhatsApp}
+        />
+
+        {/* Mobile Navigation */}
+        <nav className="mobile-bottom-nav" aria-label="Mobile Navigation">
+          <button
+            type="button"
+            className={`mobile-nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }}
+          >
+            <LayoutDashboard size={20} />
+            <span>Dashboard</span>
+          </button>
+
+          <button
+            type="button"
+            className={`mobile-nav-item ${activeTab === 'receipts' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('receipts'); setIsMobileMenuOpen(false); }}
+          >
+            <Receipt size={20} />
+            <span>Daybook</span>
+            {stats?.totalReceipts > 0 && (
+              <span className="mobile-nav-badge">{stats.totalReceipts}</span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            className="mobile-nav-fab"
+            onClick={() => { setIsNewReceiptOpen(true); setIsMobileMenuOpen(false); }}
+            title="Issue New Member Receipt"
+          >
+            <Plus size={24} />
+          </button>
+
+          <button
+            type="button"
+            className={`mobile-nav-item ${activeTab === 'donors' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('donors'); setIsMobileMenuOpen(false); }}
+          >
+            <Users size={20} />
+            <span>Members</span>
+          </button>
+
+          <button
+            type="button"
+            className={`mobile-nav-item ${activeTab === 'settings' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('settings'); setIsMobileMenuOpen(false); }}
+          >
+            <Settings size={20} />
+            <span>Settings</span>
+          </button>
+        </nav>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // ROUTE 2: PUBLIC MEMBER ROUTE (URL /)
+  // Strictly for Members / Donors. ZERO Admin partiality, no admin tabs visible!
+  // =========================================================================
+
+  // If not logged in -> Show Member AuthView (only Member Sign In & Sign Up)
+  if (!currentUser) {
+    return (
+      <>
+        {toastMessage && (
+          <div style={{
+            position: 'fixed',
+            top: '20px',
+            right: '24px',
+            zIndex: 200,
+            background: toastMessage.type === 'error' ? '#ef4444' : '#0f172a',
+            color: '#ffffff',
+            padding: '12px 20px',
+            borderRadius: '10px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+            fontSize: '13px',
+            fontWeight: 600,
+          }}>
+            {toastMessage.msg}
+          </div>
+        )}
+        <AuthView onAuthSuccess={handleAuthSuccess} settings={activeSettings} />
+      </>
+    );
+  }
+
+  // If logged in as Member / Donor -> Show DonorPortalView
+  if (currentUser.role === 'donor') {
+    return (
+      <>
+        {toastMessage && (
+          <div style={{
+            position: 'fixed',
+            top: '20px',
+            right: '24px',
+            zIndex: 200,
+            background: toastMessage.type === 'error' ? '#ef4444' : '#0f172a',
+            color: '#ffffff',
+            padding: '12px 20px',
+            borderRadius: '10px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+            fontSize: '13px',
+            fontWeight: 600,
+          }}>
+            {toastMessage.msg}
+          </div>
+        )}
+
+        <DonorPortalView
+          user={currentUser}
+          token={authToken}
+          settings={activeSettings}
+          onLogout={handleLogout}
+          onViewReceipt={(r) => setViewingReceipt(r)}
+          onShareWhatsApp={handleShareWhatsApp}
+        />
+
+        <ViewReceiptModal
+          isOpen={Boolean(viewingReceipt)}
+          receipt={viewingReceipt}
+          settings={activeSettings}
+          onClose={() => setViewingReceipt(null)}
+          onShareWhatsApp={handleShareWhatsApp}
+        />
+      </>
+    );
+  }
+
+  // If logged in as Admin and on root URL -> Redirect or offer button to open /admin
+  return (
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: '#f8fafc',
+      fontFamily: 'sans-serif',
+      padding: '20px'
+    }}>
+      <div style={{
+        background: '#ffffff',
+        padding: '32px',
+        borderRadius: '16px',
+        boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+        maxWidth: '440px',
+        textAlign: 'center'
+      }}>
+        <div style={{ fontSize: '13px', fontWeight: 700, color: '#d97706', textTransform: 'uppercase', marginBottom: '6px' }}>
+          Administrator Session Active
+        </div>
+        <h2 style={{ color: '#003366', margin: '0 0 8px 0', fontSize: '20px' }}>
+          {currentUser.full_name}
+        </h2>
+        <p style={{ color: '#64748b', fontSize: '13.5px', marginBottom: '22px' }}>
+          You are currently signed in with administrator privileges.
+        </p>
         <button
-          type="button"
-          className={`mobile-nav-item ${activeTab === 'settings' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('settings'); setIsMobileMenuOpen(false); }}
+          onClick={() => navigateTo('/admin')}
+          style={{
+            background: 'linear-gradient(135deg, #003366 0%, #1e40af 100%)',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '12px 20px',
+            fontSize: '14px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            width: '100%',
+            marginBottom: '10px',
+            boxShadow: '0 4px 12px rgba(0, 51, 102, 0.25)'
+          }}
         >
-          <Settings size={20} />
-          <span>Settings</span>
+          Open Admin Dashboard (/admin)
         </button>
-      </nav>
+        <button
+          onClick={handleLogout}
+          style={{
+            background: '#ffffff',
+            color: '#64748b',
+            border: '1.5px solid #cbd5e1',
+            borderRadius: '8px',
+            padding: '10px 20px',
+            fontSize: '13px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            width: '100%'
+          }}
+        >
+          Sign Out
+        </button>
+      </div>
     </div>
   );
 }
