@@ -637,7 +637,15 @@ app.post('/api/receipts', async (req, res) => {
       auto_send_email = true,
     } = req.body;
 
-    const resolvedHeadName = head_name || 'Monthly Member Contribution';
+    let validHeadId = null;
+    let resolvedHeadName = head_name || 'Monthly Member Contribution';
+    if (head_id) {
+      const headCheck = await query('SELECT id, name FROM account_heads WHERE id = $1', [parseInt(head_id)]);
+      if (headCheck.rows.length > 0) {
+        validHeadId = headCheck.rows[0].id;
+        resolvedHeadName = headCheck.rows[0].name;
+      }
+    }
 
     if (!donor_name || !amount) {
       await query('ROLLBACK');
@@ -704,7 +712,7 @@ app.post('/api/receipts', async (req, res) => {
       donor_whatsapp || '',
       donor_email ? donor_email.trim() : '',
       donor_address || '',
-      head_id ? parseInt(head_id) : null,
+      validHeadId,
       resolvedHeadName,
       amountNum,
       amountWords,
