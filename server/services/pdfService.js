@@ -142,7 +142,7 @@ function generateReceiptPdf(receipt, settings = {}) {
         doc.font('Helvetica')
           .fontSize(8.5)
           .fillColor('#334155')
-          .text('Subramanya Nagar, Kambar Street, Bye-Pass Road', headerTextX, y, { align: 'center', width: headerTextWidth });
+          .text('Subramanya Nagar, Bye-Pass Road', headerTextX, y, { align: 'center', width: headerTextWidth });
 
         y += 16;
       }
