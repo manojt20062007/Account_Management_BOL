@@ -26,7 +26,7 @@ export default function AuthView({ onAuthSuccess, settings }) {
     pan_or_id: '',
   });
 
-  const trustName = settings?.trust_name || 'BRIDGE OF LOVE';
+  const trustName = settings?.trust_name || 'Anbin Unavu';
   const tagline = settings?.tagline || 'Dedicated to Social Upliftment, Education & Healthcare';
 
   // Handle Member Login using Phone Number or Email
@@ -207,7 +207,7 @@ export default function AuthView({ onAuthSuccess, settings }) {
           </div>
 
           <div style={{ fontSize: '12px', fontWeight: 700, color: '#fde68a', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '4px' }}>
-            அன்பின் பாலம் • OFFICIAL PORTAL
+            அன்பின் உணவு • OFFICIAL PORTAL
           </div>
           <h1 style={{ fontSize: '20px', fontWeight: 800, margin: '0 0 4px 0', letterSpacing: '0.5px' }}>
             {trustName}
@@ -635,7 +635,7 @@ export default function AuthView({ onAuthSuccess, settings }) {
           fontSize: '11.5px',
           color: '#64748b'
         }}>
-          Bridge of Love Charitable Trust • Reg. No. TR/BK-IV/452/2012 • 80G Certified
+          Anbin Unavu Charitable Trust • Reg. No. TR/BK-IV/452/2012 • 80G Certified
         </div>
       </div>
     </div>

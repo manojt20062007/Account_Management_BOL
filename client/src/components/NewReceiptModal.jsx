@@ -105,7 +105,7 @@ export default function NewReceiptModal({
       <div className="modal-content wide">
         <div className="modal-header">
           <div>
-            <div className="modal-title">Generate Bridge of Love Payment Receipt</div>
+            <div className="modal-title">Generate Anbin Unavu Payment Receipt</div>
             <div style={{ fontSize: '12px', color: '#64748b' }}>
               Official numbered bill • Automatic SMTP email delivery & WhatsApp sharing
             </div>
@@ -348,13 +348,13 @@ export default function NewReceiptModal({
                       <span>Automatically send PDF bill to donor's email using SMTP (Free)</span>
                     </div>
                     <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
-                      Renders the Bridge of Love vector PDF and dispatches it immediately via configured SMTP.
+                      Renders the Anbin Unavu vector PDF and dispatches it immediately via configured SMTP.
                     </div>
                   </div>
                 </label>
               </div>
             ) : (
-              /* Live Bridge of Love Receipt Preview */
+              /* Live Anbin Unavu Receipt Preview */
               <div style={{ display: 'flex', justifyContent: 'center', background: '#e2e8f0', padding: '16px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                 <div
                   className="receipt-paper-preview"
@@ -372,7 +372,7 @@ export default function NewReceiptModal({
                 >
                   {/* Background Watermark Image with ~50% Opacity */}
                   <div className="receipt-watermark-bg">
-                    <img src="/hands_heart.png" alt="Bridge of Love Watermark" />
+                    <img src="/hands_heart.png" alt="Anbin Unavu Watermark" />
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
@@ -380,7 +380,7 @@ export default function NewReceiptModal({
                     <div style={{ textAlign: 'center', flex: 1, padding: '0 10px' }}>
                       <div className="receipt-title-row">
                         <img src="/hands_heart.png" alt="Emblem" className="receipt-title-emblem" />
-                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#003366' }}>{settings?.trust_name || 'BRIDGE OF LOVE'}</div>
+                        <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#003366' }}>{settings?.trust_name || 'Anbin Unavu'}</div>
                         <img src="/hands_heart.png" alt="Emblem" className="receipt-title-emblem" />
                       </div>
                       {settings?.tagline && settings.tagline.split(/\n|\|/).map((tag, idx) => (
@@ -504,7 +504,7 @@ export default function NewReceiptModal({
                       Thank you for your generous contribution.
                     </div>
                     <div style={{ fontSize: '11px', color: '#003366' }}>
-                      {settings?.signatory_title || `Issued by ${settings?.trust_name || 'Bridge of Love'} (Team Members)`}
+                      {settings?.signatory_title || `Issued by ${settings?.trust_name || 'Anbin Unavu'} (Team Members)`}
                     </div>
                   </div>
                 </div>

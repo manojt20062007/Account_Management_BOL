@@ -22,7 +22,7 @@ async function getTransporter() {
       isMock: true,
       transporter: null,
       fromEmail: settings.email || 'trust.receipts@example.org',
-      fromName: settings.trust_name || 'BRIDGE OF LOVE',
+      fromName: settings.trust_name || 'Anbin Unavu',
     };
   }
 
@@ -59,7 +59,7 @@ async function getTransporter() {
     isMock: false,
     transporter,
     fromEmail,
-    fromName: settings.smtp_from_name || settings.trust_name || 'BRIDGE OF LOVE',
+    fromName: settings.smtp_from_name || settings.trust_name || 'Anbin Unavu',
   };
 }
 
@@ -114,7 +114,7 @@ async function sendReceiptEmail(receipt, pdfBuffer) {
         <div class="container">
           <div class="header">
             <h1>${settings.trust_name}</h1>
-            <p>${settings.tagline || 'Bridge of Love'}</p>
+            <p>${settings.tagline || 'Anbin Unavu'}</p>
           </div>
           <div class="content">
             <div class="greeting">Respected ${receipt.donor_name},</div>

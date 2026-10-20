@@ -1,6 +1,6 @@
-# Bridge of Love — Trust Accounting & 80G Receipt Management System
+# Anbin Unavu — Trust Accounting & 80G Receipt Management System
 
-Official accounting, daybook, and receipt management application designed specifically for **BRIDGE OF LOVE**, Tiruttani, Tamilnadu, built using the **PERN stack** (PostgreSQL 17, Express.js, React 19, Node.js v24).
+Official accounting, daybook, and receipt management application designed specifically for **Anbin Unavu**, Tiruttani, Tamilnadu, built using the **PERN stack** (PostgreSQL 17, Express.js, React 19, Node.js v24).
 
 ---
 
@@ -49,7 +49,7 @@ To enable automatic email delivery at zero cost:
 1. Log in to your trust's Google Account at [myaccount.google.com](https://myaccount.google.com/).
 2. Under **Security**, ensure **2-Step Verification** is turned ON.
 3. In the search box, search for **App Passwords** (or go to [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)).
-4. Create a new App Password named **"Bridge of Love Receipts"**.
+4. Create a new App Password named **"Anbin Unavu Receipts"**.
 5. Copy the 16-letter password shown on screen.
 6. In the app, navigate to **Trust & SMTP Setup** in the sidebar.
 7. Enter your Gmail in **SMTP Username** and paste the 16-letter code into **SMTP App Password**.

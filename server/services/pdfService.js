@@ -14,7 +14,7 @@ const MOTHER_PATH = path.join(__dirname, '../assets/mother.png');
 function generateReceiptPdf(receipt, settings = {}) {
   return new Promise((resolve, reject) => {
     try {
-      const trustName = settings.trust_name || 'BRIDGE OF LOVE';
+      const trustName = settings.trust_name || 'Anbin Unavu';
       const currencySymbol = settings.currency_symbol || '₹';
 
       const doc = new PDFDocument({
@@ -121,7 +121,7 @@ function generateReceiptPdf(receipt, settings = {}) {
       const ycord = 60;
       if (has1TamilFont) {
         doc.font('TamilFont').fontSize(15).fillColor('#003366')
-          .text('அன்பின் பாலம்', xcord, ycord);
+          .text('அன்பின் உணவு', xcord, ycord);
       }
       y += 25;
 
@@ -426,7 +426,7 @@ function generateReceiptPdf(receipt, settings = {}) {
 function generateAllAccountsPdf(receipts, settings = {}) {
   return new Promise((resolve, reject) => {
     try {
-      const trustName = settings.trust_name || 'BRIDGE OF LOVE';
+      const trustName = settings.trust_name || 'Anbin Unavu';
       // Format currency: Use "Rs." in standard PostScript fonts to prevent broken '¹' glyph in Helvetica
       const currCode = 'Rs.';
 
@@ -527,7 +527,7 @@ function generateAllAccountsPdf(receipts, settings = {}) {
 
       if (hasTamilFont) {
         doc.font('TamilFont').fontSize(11).fillColor('#93c5fd')
-          .text('அன்பின் பாலம்', centerStartX, curY, { align: 'center', width: centerWidth });
+          .text('அன்பின் உணவு', centerStartX, curY, { align: 'center', width: centerWidth });
         curY += 14;
       } else {
         curY += 2;
@@ -862,7 +862,7 @@ if (require.main === module) {
   };
 
   const sampleSettings = {
-    trust_name: 'BRIDGE OF LOVE',
+    trust_name: 'Anbin Unavu',
     tagline: 'Dedicated to Social Upliftment, Education & Healthcare',
     currency_symbol: '₹',
     currency_code: 'INR',

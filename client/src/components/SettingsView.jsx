@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Settings, ShieldCheck, Mail, CheckCircle2, AlertTriangle, Key, 
-  Server, Save, Eye, EyeOff, RotateCcw, Upload, FileText, Check, 
+import {
+  Settings, ShieldCheck, Mail, CheckCircle2, AlertTriangle, Key,
+  Server, Save, Eye, EyeOff, RotateCcw, Upload, FileText, Check,
   Sparkles, Send, MapPin, Phone, Building2, RefreshCw, MessageSquare,
   Copy, Smartphone
 } from 'lucide-react';
@@ -52,18 +52,18 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
   const [formData, setFormData] = useState({ ...settings });
   const [initialData, setInitialData] = useState({ ...settings });
   const [isDirty, setIsDirty] = useState(false);
-  
+
   const [testingSmtp, setTestingSmtp] = useState(false);
   const [smtpStatus, setSmtpStatus] = useState(null); // { success: boolean, message: string }
-  
+
   const [testEmailAddress, setTestEmailAddress] = useState('');
   const [sendingTestEmail, setSendingTestEmail] = useState(false);
   const [testEmailStatus, setTestEmailStatus] = useState(null); // { success: boolean, message: string }
-  
+
   const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  
+
   const [showLivePreview, setShowLivePreview] = useState(true);
   const [logoPreview, setLogoPreview] = useState(null);
   const [logoTimestamp, setLogoTimestamp] = useState(Date.now());
@@ -96,7 +96,7 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
     setCopiedWhatsApp(true);
     setTimeout(() => setCopiedWhatsApp(false), 2000);
   };
-  
+
   const fileInputRef = useRef(null);
 
   // Synchronize state dynamically whenever settings prop updates from backend
@@ -407,7 +407,7 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
                   <div>
                     <label className="form-label" style={{ marginBottom: '2px' }}>Official Trust Logo / Emblem</label>
                     <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
-                      Renders dynamically on both left and right headers of official Bridge of Love vector PDF receipts.
+                      Renders dynamically on both left and right headers of official Anbin Unavu vector PDF receipts.
                     </p>
                   </div>
                 </div>
@@ -460,7 +460,7 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
                 type="text"
                 required
                 className="form-control"
-                placeholder="e.g. BRIDGE OF LOVE"
+                placeholder="e.g. Anbin Unavu"
                 value={formData.trust_name || ''}
                 onChange={(e) => handleChange('trust_name', e.target.value)}
               />
@@ -723,7 +723,7 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
               >
                 {/* Background Watermark Image with ~50% Opacity */}
                 <div className="receipt-watermark-bg">
-                  <img src="/hands_heart.png" alt="Bridge of Love Watermark" />
+                  <img src="/hands_heart.png" alt="Anbin Unavu Watermark" />
                 </div>
                 {/* Header: Dynamic Logos & Organization Details */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
@@ -737,7 +737,7 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
                     <div className="receipt-title-row">
                       <img src="/hands_heart.png" alt="Emblem" className="receipt-title-emblem" />
                       <div style={{ fontSize: '17px', fontWeight: 'bold', color: '#003366', letterSpacing: '0.5px' }}>
-                        {formData.trust_name || 'BRIDGE OF LOVE'}
+                        {formData.trust_name || 'Anbin Unavu'}
                       </div>
                       <img src="/hands_heart.png" alt="Emblem" className="receipt-title-emblem" />
                     </div>
@@ -816,7 +816,7 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
                     Thank you for your generous contribution.
                   </div>
                   <div style={{ fontSize: '10.5px', color: '#003366', marginTop: '2px' }}>
-                    {formData.signatory_title || `Issued by ${formData.trust_name || 'Bridge of Love'} (Team Members)`}
+                    {formData.signatory_title || `Issued by ${formData.trust_name || 'Anbin Unavu'} (Team Members)`}
                   </div>
                 </div>
               </div>
@@ -982,7 +982,7 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '13px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {formData.trust_name || 'BRIDGE OF LOVE'}
+                        {formData.trust_name || 'Anbin Unavu'}
                       </div>
                       <div style={{ fontSize: '10.5px', color: '#cbfadb', opacity: 0.9 }}>
                         Online • Verified Trust
@@ -1027,7 +1027,7 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
                       {renderFormattedWhatsAppText(
                         (formData.whatsapp_message !== undefined ? formData.whatsapp_message : DEFAULT_WHATSAPP_TEMPLATE)
                           .replace(/{donor_name}/g, 'Dr. Anand V. Kulkarni')
-                          .replace(/{trust_name}/g, formData.trust_name || 'BRIDGE OF LOVE')
+                          .replace(/{trust_name}/g, formData.trust_name || 'Anbin Unavu')
                           .replace(/{receipt_no}/g, `${formData.receipt_prefix || 'TR/REC'}-1001`)
                           .replace(/{date}/g, new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }))
                           .replace(/{amount}/g, `${formData.currency_symbol || '₹'} 25,000`)
@@ -1198,7 +1198,7 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
                 <input
                   type="text"
                   className="form-control"
-                  placeholder={formData.trust_name || 'Bridge of Love'}
+                  placeholder={formData.trust_name || 'Anbin Unavu'}
                   value={formData.smtp_from_name || ''}
                   onChange={(e) => handleChange('smtp_from_name', e.target.value)}
                 />
@@ -1300,7 +1300,7 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
         </div>
 
         {/* 5. Sticky Bottom Action Toolbar */}
-        <div 
+        <div
           className="settings-save-toolbar"
           style={{
             position: 'sticky',

@@ -4,18 +4,18 @@ require('dotenv').config();
 
 const poolConfig = process.env.DATABASE_URL
   ? {
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1')
-        ? false
-        : { rejectUnauthorized: false },
-    }
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1')
+      ? false
+      : { rejectUnauthorized: false },
+  }
   : {
-      host: process.env.DB_HOST || '127.0.0.1',
-      port: parseInt(process.env.DB_PORT || '5433'),
-      user: process.env.DB_USER || 'postgres',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'trust_account_db',
-    };
+    host: process.env.DB_HOST || '127.0.0.1',
+    port: parseInt(process.env.DB_PORT || '5433'),
+    user: process.env.DB_USER || 'postgres',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'trust_account_db',
+  };
 
 const pool = new Pool({
   ...poolConfig,
@@ -291,7 +291,7 @@ Warm regards,
         INSERT INTO users (full_name, email, phone, role, password_hash, password_salt)
         VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT (email) DO NOTHING
-      `, ['Bridge of Love Admin', 'admin@bridgeoflove.org', '+91 94441 00000', 'admin', hash, salt]);
+      `, ['Anbin Unavu Admin', 'admin@bridgeoflove.org', '+91 94441 00000', 'admin', hash, salt]);
     }
 
     // Ensure demo registered member exists for testing
