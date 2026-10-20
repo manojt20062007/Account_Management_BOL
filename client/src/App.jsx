@@ -188,7 +188,7 @@ export default function App() {
 
   // 4. MANUAL WHATSAPP SHARING
   const handleShareWhatsApp = (receipt) => {
-    const trustName = settings?.trust_name || 'BRIDGE OF LOVE';
+    const trustName = settings?.trust_name || 'Anbin Unavu';
     const formattedAmount = `${settings?.currency_symbol || '₹'} ${parseFloat(receipt.amount || 0).toLocaleString('en-IN')}`;
     let formattedDate = '';
     if (receipt.receipt_date) {

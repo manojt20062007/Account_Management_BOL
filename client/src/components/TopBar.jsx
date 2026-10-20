@@ -1,10 +1,10 @@
 import React from 'react';
 import { PlusCircle, FileDown, Calendar, Menu } from 'lucide-react';
 
-export default function TopBar({ 
-  onOpenNewReceipt, 
-  onExportAllPdf, 
-  settings, 
+export default function TopBar({
+  onOpenNewReceipt,
+  onExportAllPdf,
+  settings,
   activeTab,
   onToggleMobileMenu,
   currentUser,
@@ -51,7 +51,7 @@ export default function TopBar({
           <h1>{titles[activeTab] || 'Trust Accounting'}</h1>
           <p style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <img src="/hands_heart.png" alt="" style={{ height: '14px', width: 'auto', objectFit: 'contain' }} />
-            <span>{settings?.trust_name || 'BRIDGE OF LOVE'}</span>
+            <span>{settings?.trust_name || 'Anbin Unavu'}</span>
             <img src="/hands_heart.png" alt="" style={{ height: '14px', width: 'auto', objectFit: 'contain' }} />
             <span>• {getLocation()}</span>
           </p>

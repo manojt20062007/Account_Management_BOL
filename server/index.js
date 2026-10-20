@@ -495,7 +495,7 @@ app.get('/api/settings', async (req, res) => {
     settings.smtp_host = settings.smtp_host || process.env.SMTP_HOST || 'smtp.gmail.com';
     settings.smtp_port = settings.smtp_port || parseInt(process.env.SMTP_PORT || '587');
     settings.smtp_user = settings.smtp_user || process.env.SMTP_USER || '';
-    settings.smtp_from_name = settings.smtp_from_name || settings.trust_name || 'BRIDGE OF LOVE';
+    settings.smtp_from_name = settings.smtp_from_name || settings.trust_name || 'Anbin Unavu';
     settings.smtp_from_email = settings.smtp_from_email || settings.smtp_user || process.env.SMTP_USER || '';
 
     // Mask password in response for security, but indicate whether it is configured (DB or Env)

@@ -1,12 +1,12 @@
 import React from 'react';
 import { API_BASE } from '../config/api';
-import { 
-  IndianRupee, 
-  Receipt, 
-  Users, 
-  TrendingUp, 
-  FileDown, 
-  PlusCircle, 
+import {
+  IndianRupee,
+  Receipt,
+  Users,
+  TrendingUp,
+  FileDown,
+  PlusCircle,
   ExternalLink,
   ShieldCheck,
   Send,
@@ -14,14 +14,14 @@ import {
   CreditCard
 } from 'lucide-react';
 
-export default function DashboardView({ 
-  stats, 
-  settings, 
-  onOpenNewReceipt, 
-  onExportAllPdf, 
-  onViewReceipt, 
+export default function DashboardView({
+  stats,
+  settings,
+  onOpenNewReceipt,
+  onExportAllPdf,
+  onViewReceipt,
   onShareWhatsApp,
-  setActiveTab 
+  setActiveTab
 }) {
   const currencySymbol = settings?.currency_symbol || '₹';
 
@@ -135,7 +135,7 @@ export default function DashboardView({
         <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
           <div className="card-header">
             <div className="card-title">
-              <img src="/logo.png" alt="Bridge of Love" style={{ width: 18, height: 18, borderRadius: 3, objectFit: 'contain' }} />
+              <img src="/logo.png" alt="Anbin Unavu" style={{ width: 18, height: 18, borderRadius: 3, objectFit: 'contain' }} />
               <span>Trust Compliance & Export</span>
             </div>
           </div>
@@ -183,7 +183,7 @@ export default function DashboardView({
           <div className="card-title">
             <span>Recent Receipts Issued</span>
           </div>
-          <button 
+          <button
             className="btn btn-outline btn-sm"
             onClick={() => setActiveTab('receipts')}
           >

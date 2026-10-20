@@ -12,7 +12,7 @@ export default function AdminLoginView({ onAuthSuccess, settings, onGoToMemberPo
     password: '',
   });
 
-  const trustName = settings?.trust_name || 'BRIDGE OF LOVE';
+  const trustName = settings?.trust_name || 'Anbin Unavu';
 
   const handleAdminLogin = async (e) => {
     if (e) e.preventDefault();
@@ -323,7 +323,7 @@ export default function AdminLoginView({ onAuthSuccess, settings, onGoToMemberPo
           fontSize: '11.5px',
           color: '#64748b'
         }}>
-          Authorized Personnel Only • Bridge of Love System Administration
+          Authorized Personnel Only • Anbin Unavu System Administration
         </div>
       </div>
     </div>

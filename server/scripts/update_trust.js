@@ -4,12 +4,12 @@ async function run() {
   try {
     await query(`
       UPDATE trust_settings SET 
-        trust_name = 'BRIDGE OF LOVE',
+        trust_name = 'Anbin Unavu',
         tagline = '"Humanity – Helping Hands"\n"Connecting Compassionate Hearts with People in Need"',
         address = 'Subramanya Nagar, Kambar Street, Bye-Pass Road,\nTiruttani – 631209, Tiruvallur District, Tamilnadu.',
         receipt_prefix = 'BOL/REC',
         signatory_name = 'Authorized Signatory',
-        signatory_title = 'Issued by Bridge of Love (Team Members)',
+        signatory_title = 'Issued by Anbin Unavu (Team Members)',
         currency_symbol = '₹'
       WHERE id = 1;
     `);
@@ -20,7 +20,7 @@ async function run() {
 
     await query(`UPDATE receipts SET receipt_time = '10:30 AM' WHERE receipt_time IS NULL;`);
 
-    console.log('Database updated successfully for Bridge of Love.');
+    console.log('Database updated successfully for Anbin Unavu.');
     process.exit(0);
   } catch (err) {
     console.error(err);

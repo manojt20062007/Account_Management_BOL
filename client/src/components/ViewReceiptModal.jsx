@@ -72,7 +72,7 @@ export default function ViewReceiptModal({ receipt, settings, isOpen, onClose, o
         </div>
 
         <div className="modal-body" style={{ background: '#e2e8f0', display: 'flex', justifyContent: 'center', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-          {/* Exactly matching Bridge of Love Paper Receipt format */}
+          {/* Exactly matching Anbin Unavu Paper Receipt format */}
           <div
             className="receipt-paper-preview"
             style={{
@@ -90,14 +90,14 @@ export default function ViewReceiptModal({ receipt, settings, isOpen, onClose, o
           >
             {/* Background Watermark Image with ~50% Opacity */}
             <div className="receipt-watermark-bg">
-              <img src="/hands_heart.png" alt="Bridge of Love Watermark" />
+              <img src="/hands_heart.png" alt="Anbin Unavu Watermark" />
             </div>
 
             {/* Header: Logos & Organization Details */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', position: 'relative', zIndex: 1 }}>
               <img
                 src="/logo.png"
-                alt="Bridge of Love Logo"
+                alt="Anbin Unavu Logo"
                 style={{ width: '50px', height: '50px', objectFit: 'contain' }}
                 onError={(e) => { e.target.style.display = 'none'; }}
               />
@@ -109,7 +109,7 @@ export default function ViewReceiptModal({ receipt, settings, isOpen, onClose, o
                     className="receipt-title-emblem"
                   />
                   <h1 style={{ fontSize: '35px', fontWeight: 'bold', color: '#db3604ff', margin: 0, letterSpacing: '0.5px' }}>
-                    {settings?.trust_name || 'BRIDGE OF LOVE'}
+                    {settings?.trust_name || 'Anbin Unavu'}
                   </h1>
                   <img
                     src="/hands_heart.png"
@@ -310,7 +310,7 @@ export default function ViewReceiptModal({ receipt, settings, isOpen, onClose, o
                 Thank you for your generous contribution.
               </div>
               <div style={{ fontSize: '12px', color: '#003366', fontWeight: 500 }}>
-                {settings?.signatory_title || `Issued by ${settings?.trust_name || 'Bridge of Love'} (Team Members)`}
+                {settings?.signatory_title || `Issued by ${settings?.trust_name || 'Anbin Unavu'} (Team Members)`}
               </div>
             </div>
           </div>

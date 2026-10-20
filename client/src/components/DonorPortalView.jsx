@@ -16,7 +16,7 @@ export default function DonorPortalView({
   const [activeTab, setActiveTab] = useState('tracker'); // 'tracker' | 'bills' | 'profile'
 
   const currencySymbol = settings?.currency_symbol || '₹';
-  const trustName = settings?.trust_name || 'BRIDGE OF LOVE';
+  const trustName = settings?.trust_name || 'Anbin Unavu';
 
   const loadPortalData = async () => {
     setLoading(true);
@@ -111,7 +111,7 @@ export default function DonorPortalView({
             </div>
             <div>
               <div style={{ fontSize: '11px', fontWeight: 700, color: '#003366', letterSpacing: '0.5px', textTransform: 'uppercase' }}>
-                அன்பின் பாலம் • MEMBER PORTAL
+                அன்பின் உணவு • MEMBER PORTAL
               </div>
               <div style={{ fontSize: '16px', fontWeight: 800, color: '#003366', lineHeight: 1.2 }}>
                 {trustName}

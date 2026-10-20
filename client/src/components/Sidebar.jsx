@@ -1,21 +1,21 @@
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  Receipt, 
-  Users, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Receipt,
+  Users,
+  Settings,
   FileDown,
   X
 } from 'lucide-react';
 
-export default function Sidebar({ 
-  activeTab, 
-  setActiveTab, 
-  onExportAllPdf, 
-  stats, 
+export default function Sidebar({
+  activeTab,
+  setActiveTab,
+  onExportAllPdf,
+  stats,
   settings,
   isOpenMobile,
-  onCloseMobile 
+  onCloseMobile
 }) {
   const handleTabClick = (tab) => {
     setActiveTab(tab);
@@ -26,7 +26,7 @@ export default function Sidebar({
     <>
       {/* Mobile Drawer Backdrop */}
       {isOpenMobile && (
-        <div 
+        <div
           className="sidebar-backdrop"
           onClick={onCloseMobile}
           aria-hidden="true"
@@ -36,24 +36,24 @@ export default function Sidebar({
       <aside className={`app-sidebar ${isOpenMobile ? 'mobile-open' : ''}`}>
         <div className="sidebar-header">
           <div className="trust-logo-box">
-            <img 
-              src="/logo.png" 
-              alt="Bridge of Love" 
-              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} 
+            <img
+              src="/logo.png"
+              alt="Anbin Unavu"
+              style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }}
             />
           </div>
           <div className="brand-info">
             <h2>TrustAccount Pro</h2>
             <span>
-              {settings?.trust_name?.length > 22 
-                ? settings.trust_name.slice(0, 22) + '...' 
+              {settings?.trust_name?.length > 22
+                ? settings.trust_name.slice(0, 22) + '...'
                 : (settings?.trust_name || 'Charitable Trust')}
             </span>
           </div>
 
           {/* Close button for mobile drawer */}
-          <button 
-            type="button" 
+          <button
+            type="button"
             className="sidebar-mobile-close"
             onClick={onCloseMobile}
             aria-label="Close navigation menu"
