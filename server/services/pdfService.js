@@ -61,31 +61,28 @@ function generateReceiptPdf(receipt, settings = {}) {
       const logoWidth = 110;
       const logoHeight = 100;
       const hasLogo = fs.existsSync(LOGO_PATH);
-
+      // position of left logo
       if (hasLogo) {
         doc.image(LOGO_PATH, margin + 12, y, { width: logoWidth, height: logoHeight });
       }
       if (fs.existsSync(MOTHER_PATH)) {
-        const motherX = 460;
-        const motherY = y - 8;
-        const motherW = 98;
+        const motherX = 440;
+        const motherY = y - 15;
+        const motherW = 110;
         const motherH = 100;
         const centerX = motherX + motherW / 2;
         const centerY = motherY + motherH / 2;
         const radiusX = motherW / 2;
         const radiusY = motherH / 2;
 
-        // Clip image into elegant oval cameo
-        doc.save();
-        doc.ellipse(centerX, centerY, radiusX, radiusY).clip();
-        doc.image(MOTHER_PATH, 460, 34, { width: motherW, height: motherH });
-        doc.restore();
+
 
         // Draw elegant Navy oval shape border
-        doc.ellipse(centerX, centerY, 45, 48)
-          .lineWidth(1.5)
-          .strokeColor('#003366')
-          .stroke();
+        // Clip image into elegant oval cameo
+        doc.save();
+
+        doc.image(MOTHER_PATH, 450, margin+12, { width: motherW, height: motherH });
+        doc.restore();
       }
 
       // Title & Mottos (100% Dynamic) with emblems before and next to trust name
@@ -104,9 +101,9 @@ function generateReceiptPdf(receipt, settings = {}) {
 
 
       if (fs.existsSync(HANDS_HEART_PATH) && totalGroupWidth < headerTextWidth) {
-        doc.image(HANDS_HEART_PATH, startX - 5, y - 1, { width: 60, height: emblemSize });
+        doc.image(HANDS_HEART_PATH, startX - 14, y - 1, { width: 60, height: emblemSize });
         doc.fillColor('#003366').text(titleText, startX + emblemSize + emblemGap, y, { lineBreak: false });
-        doc.image(HANDS_HEART_PATH, startX - 1 + emblemSize + emblemGap + titleWidth + emblemGap, y - 4, { width: 60, height: emblemSize });
+        doc.image(HANDS_HEART_PATH, startX + 4 + emblemSize + emblemGap + titleWidth + emblemGap, y - 4, { width: 60, height: emblemSize });
       } else {
         doc.fillColor('#003366').text(titleText, headerTextX, y, { align: 'center', width: headerTextWidth });
       }
