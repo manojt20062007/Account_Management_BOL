@@ -866,7 +866,7 @@ if (require.main === module) {
     tagline: 'Dedicated to Social Upliftment, Education & Healthcare',
     currency_symbol: '₹',
     currency_code: 'INR',
-    address: 'Subramanya Nagar, Kambar Street, Bye-Pass Road, Tiruttani – 631209, Tiruvallur District, Tamilnadu.',
+    address: 'Subramanya Nagar, Bye-Pass Road, Tiruttani – 631209, Tiruvallur District, Tamilnadu.',
     signatory_name: 'Authorized Signatory',
     signatory_title: 'Managing Trustee',
   };
