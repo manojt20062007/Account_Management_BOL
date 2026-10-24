@@ -16,6 +16,16 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+// Health Check Endpoint (For uptime monitors, cron pingers & Render keep-alive)
+app.get(['/', '/health', '/api/health'], (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    message: 'TrustAccount Pro Backend is active',
+    timestamp: new Date().toISOString(),
+    uptimeSeconds: Math.floor(process.uptime()),
+  });
+});
+
 // Auth Token Verification Middleware
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
@@ -1025,12 +1035,33 @@ app.post('/api/receipts/:id/send-email', async (req, res) => {
   }
 });
 
+// Render Free Tier Keep-Alive Helper
+function initKeepAlive() {
+  const externalUrl = process.env.RENDER_EXTERNAL_URL || process.env.KEEP_ALIVE_URL;
+  if (!externalUrl) {
+    return;
+  }
+  const pingUrl = externalUrl.endsWith('/health') ? externalUrl : `${externalUrl.replace(/\/+$/, '')}/health`;
+  const INTERVAL_MS = 14 * 60 * 1000; // 14 minutes (Render sleeps at 15m of inactivity)
+
+  console.log(`[Keep-Alive] Configured to ping ${pingUrl} every 14 minutes`);
+  setInterval(async () => {
+    try {
+      const response = await fetch(pingUrl);
+      console.log(`[Keep-Alive] Pinged ${pingUrl} (Status: ${response.status})`);
+    } catch (err) {
+      console.warn(`[Keep-Alive] Failed to ping ${pingUrl}:`, err.message);
+    }
+  }, INTERVAL_MS);
+}
+
 // Start Server & Initialize Database
 async function startServer() {
   try {
     await initDatabase();
     app.listen(PORT, () => {
       console.log(`TrustAccount Pro Backend running on http://localhost:${PORT}`);
+      initKeepAlive();
     });
   } catch (err) {
     console.error('Fatal initialization error:', err);
