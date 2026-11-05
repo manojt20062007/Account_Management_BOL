@@ -1,8 +1,9 @@
 import React from 'react';
-import { PlusCircle, FileDown, Calendar, Menu } from 'lucide-react';
+import { PlusCircle, FileDown, Calendar, Menu, TrendingDown } from 'lucide-react';
 
 export default function TopBar({
   onOpenNewReceipt,
+  onOpenNewExpense,
   onExportAllPdf,
   settings,
   activeTab,
@@ -20,6 +21,7 @@ export default function TopBar({
   const titles = {
     dashboard: 'Trust Financial Overview',
     receipts: 'Daybook & Receipts Management',
+    expenses: 'Expenses & Payment Vouchers',
     donors: 'Trust Members & Ledger',
     settings: 'Trust Configuration & SMTP',
   };
@@ -85,6 +87,18 @@ export default function TopBar({
           <PlusCircle size={14} />
           <span className="btn-text-desktop">Issue Member Receipt</span>
           <span className="btn-text-mobile">+ Receipt</span>
+        </button>
+
+        {/* RECORD EXPENSE BUTTON */}
+        <button
+          className="btn btn-rose btn-topbar-action"
+          onClick={onOpenNewExpense}
+          id="btn-new-expense-trigger"
+          title="Record New Expense Voucher"
+        >
+          <TrendingDown size={14} />
+          <span className="btn-text-desktop">Record Expense</span>
+          <span className="btn-text-mobile">+ Expense</span>
         </button>
 
         {/* User Account / Admin Badge & Logout */}

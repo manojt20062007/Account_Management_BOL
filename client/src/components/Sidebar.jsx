@@ -5,13 +5,15 @@ import {
   Users,
   Settings,
   FileDown,
-  X
+  X,
+  TrendingDown
 } from 'lucide-react';
 
 export default function Sidebar({
   activeTab,
   setActiveTab,
   onExportAllPdf,
+  onExportExpensesPdf,
   stats,
   settings,
   isOpenMobile,
@@ -83,6 +85,19 @@ export default function Sidebar({
           </button>
 
           <button
+            className={`nav-link ${activeTab === 'expenses' ? 'active' : ''}`}
+            onClick={() => handleTabClick('expenses')}
+          >
+            <TrendingDown size={18} />
+            <span>Expenses & Vouchers</span>
+            {(stats?.totalExpensesCount || 0) > 0 && (
+              <span className="nav-badge" style={{ background: '#e11d48', color: '#fff' }}>
+                {stats.totalExpensesCount}
+              </span>
+            )}
+          </button>
+
+          <button
             className={`nav-link ${activeTab === 'donors' ? 'active' : ''}`}
             onClick={() => handleTabClick('donors')}
           >
@@ -102,7 +117,7 @@ export default function Sidebar({
           </button>
 
           {/* One-Click PDF Action in Sidebar */}
-          <div style={{ marginTop: 'auto', paddingTop: '16px' }}>
+          <div style={{ marginTop: 'auto', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <button
               className="btn btn-one-click-pdf"
               style={{ width: '100%', justifyContent: 'flex-start' }}
@@ -110,10 +125,29 @@ export default function Sidebar({
                 onExportAllPdf();
                 if (onCloseMobile) onCloseMobile();
               }}
-              title="Download consolidated PDF ledger of all accounts in 1 click"
+              title="Download consolidated PDF ledger of all donation receipts"
             >
               <FileDown size={16} />
-              <span>All Accounts PDF</span>
+              <span>All Receipts PDF</span>
+            </button>
+
+            <button
+              className="btn btn-outline"
+              style={{
+                width: '100%',
+                justifyContent: 'flex-start',
+                color: '#fecdd3',
+                borderColor: 'rgba(244, 63, 94, 0.3)',
+                background: 'rgba(190, 18, 60, 0.15)',
+              }}
+              onClick={() => {
+                if (onExportExpensesPdf) onExportExpensesPdf();
+                if (onCloseMobile) onCloseMobile();
+              }}
+              title="Download consolidated PDF ledger of all expenses"
+            >
+              <FileDown size={16} />
+              <span>All Expenses PDF</span>
             </button>
           </div>
         </nav>

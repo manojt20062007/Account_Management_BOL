@@ -280,6 +280,17 @@ body {
   box-shadow: 0 6px 14px rgba(5, 150, 105, 0.35);
 }
 
+.btn-rose {
+  background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(225, 29, 72, 0.25);
+}
+
+.btn-rose:hover {
+  background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
+  box-shadow: 0 6px 14px rgba(225, 29, 72, 0.35);
+}
+
 .btn-outline {
   background-color: var(--bg-surface);
   color: var(--text-main);
@@ -391,6 +402,8 @@ body {
 .metric-card.indigo::before { background: var(--indigo-600); }
 .metric-card.amber::before { background: var(--amber-600); }
 .metric-card.sky::before { background: var(--sky-600); }
+.metric-card.rose::before { background: #e11d48; }
+.metric-card.purple::before { background: #9333ea; }
 
 .metric-header {
   display: flex;
@@ -558,7 +571,8 @@ body {
 }
 
 /* Modals */
-.modal-overlay {
+.modal-overlay,
+.modal-backdrop {
   position: fixed;
   inset: 0;
   background-color: rgba(15, 23, 42, 0.6);

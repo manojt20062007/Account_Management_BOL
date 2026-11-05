@@ -19,20 +19,48 @@ export default function ReceiptsView({
   receipts,
   heads,
   settings,
+  stats,
   onOpenNewReceipt,
   onExportAllPdf,
   onViewReceipt,
   onShareWhatsApp,
   onResendEmail,
   onFilterChange,
-  filterState,
+  filterState = {},
 }) {
   const [searchTerm, setSearchTerm] = useState(filterState.search || '');
   const [selectedHead, setSelectedHead] = useState(filterState.head_id || '');
   const [selectedMode, setSelectedMode] = useState(filterState.payment_mode || '');
+  const [selectedYear, setSelectedYear] = useState(filterState.year || '');
+  const [selectedMonth, setSelectedMonth] = useState(filterState.month || '');
   const [resendingId, setResendingId] = useState(null);
 
+  React.useEffect(() => {
+    setSearchTerm(filterState.search || '');
+    setSelectedHead(filterState.head_id || '');
+    setSelectedMode(filterState.payment_mode || '');
+    setSelectedYear(filterState.year || '');
+    setSelectedMonth(filterState.month || '');
+  }, [filterState]);
+
   const currencySymbol = settings?.currency_symbol || '₹';
+
+  const availableYears = stats?.availableYears || [new Date().getFullYear()];
+
+  const months = [
+    { value: '1', name: '01 - January' },
+    { value: '2', name: '02 - February' },
+    { value: '3', name: '03 - March' },
+    { value: '4', name: '04 - April' },
+    { value: '5', name: '05 - May' },
+    { value: '6', name: '06 - June' },
+    { value: '7', name: '07 - July' },
+    { value: '8', name: '08 - August' },
+    { value: '9', name: '09 - September' },
+    { value: '10', name: '10 - October' },
+    { value: '11', name: '11 - November' },
+    { value: '12', name: '12 - December' },
+  ];
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -40,6 +68,8 @@ export default function ReceiptsView({
       search: searchTerm,
       head_id: selectedHead,
       payment_mode: selectedMode,
+      year: selectedYear,
+      month: selectedMonth,
     });
   };
 
@@ -47,7 +77,9 @@ export default function ReceiptsView({
     setSearchTerm('');
     setSelectedHead('');
     setSelectedMode('');
-    onFilterChange({ search: '', head_id: '', payment_mode: '' });
+    setSelectedYear('');
+    setSelectedMonth('');
+    onFilterChange({ search: '', head_id: '', payment_mode: '', year: '', month: '' });
   };
 
   const handleResend = async (r) => {
@@ -64,7 +96,7 @@ export default function ReceiptsView({
       <div className="card" style={{ padding: '16px 20px' }}>
         <form onSubmit={handleSearchSubmit} style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'center' }}>
           {/* Search box */}
-          <div style={{ position: 'relative', flex: '1 1 240px' }}>
+          <div style={{ position: 'relative', flex: '1 1 200px' }}>
             <Search size={16} style={{ position: 'absolute', left: '12px', top: '11px', color: '#94a3b8' }} />
             <input
               type="text"
@@ -74,6 +106,48 @@ export default function ReceiptsView({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
+          </div>
+
+          {/* Year Filter */}
+          <div style={{ minWidth: '110px' }}>
+            <select
+              className="form-control"
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(e.target.value)}
+            >
+              <option value="">All Years</option>
+              {availableYears.map((yr) => (
+                <option key={yr} value={yr}>Year {yr}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Month Filter */}
+          <div style={{ minWidth: '130px' }}>
+            <select
+              className="form-control"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+            >
+              <option value="">All Months</option>
+              {months.map((m) => (
+                <option key={m.value} value={m.value}>{m.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Account Head Filter */}
+          <div style={{ minWidth: '150px' }}>
+            <select
+              className="form-control"
+              value={selectedHead}
+              onChange={(e) => setSelectedHead(e.target.value)}
+            >
+              <option value="">All Account Heads</option>
+              {heads.map((h) => (
+                <option key={h.id} value={h.id}>{h.name}</option>
+              ))}
+            </select>
           </div>
 
 
@@ -97,7 +171,7 @@ export default function ReceiptsView({
             <span>Apply Filter</span>
           </button>
 
-          {(searchTerm || selectedHead || selectedMode) && (
+          {(searchTerm || selectedHead || selectedMode || selectedYear || selectedMonth) && (
             <button type="button" className="btn btn-outline btn-sm" onClick={handleResetFilters}>
               Reset
             </button>

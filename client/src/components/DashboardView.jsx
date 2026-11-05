@@ -1,41 +1,155 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { API_BASE } from '../config/api';
 import {
   IndianRupee,
   Receipt,
   Users,
   TrendingUp,
+  TrendingDown,
+  ArrowDownRight,
   FileDown,
   PlusCircle,
   ExternalLink,
   ShieldCheck,
   Send,
   Eye,
-  CreditCard
+  CreditCard,
+  Tag,
+  Calendar,
+  Filter,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 
 export default function DashboardView({
   stats,
   settings,
   onOpenNewReceipt,
+  onOpenNewExpense,
   onExportAllPdf,
   onViewReceipt,
   onShareWhatsApp,
-  setActiveTab
+  setActiveTab,
+  onPeriodChange,
+  periodState = {},
+  onSelectMonthFilter,
 }) {
   const currencySymbol = settings?.currency_symbol || '₹';
+
+  const [selectedYear, setSelectedYear] = useState(periodState.year || (stats?.selectedYear || new Date().getFullYear()));
+  const [selectedMonth, setSelectedMonth] = useState(periodState.month || '');
 
   const formatCurrency = (val) => {
     return `${currencySymbol} ${(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
   };
 
+  const availableYears = stats?.availableYears || [new Date().getFullYear()];
+
+  const months = [
+    { value: '1', name: 'January', short: 'Jan' },
+    { value: '2', name: 'February', short: 'Feb' },
+    { value: '3', name: 'March', short: 'Mar' },
+    { value: '4', name: 'April', short: 'Apr' },
+    { value: '5', name: 'May', short: 'May' },
+    { value: '6', name: 'June', short: 'Jun' },
+    { value: '7', name: 'July', short: 'Jul' },
+    { value: '8', name: 'August', short: 'Aug' },
+    { value: '9', name: 'September', short: 'Sep' },
+    { value: '10', name: 'October', short: 'Oct' },
+    { value: '11', name: 'November', short: 'Nov' },
+    { value: '12', name: 'December', short: 'Dec' },
+  ];
+
+  const handleApplyPeriod = (yearVal, monthVal) => {
+    setSelectedYear(yearVal);
+    setSelectedMonth(monthVal);
+    if (onPeriodChange) {
+      onPeriodChange({ year: yearVal, month: monthVal });
+    }
+  };
+
+  const handleResetPeriod = () => {
+    setSelectedYear(new Date().getFullYear());
+    setSelectedMonth('');
+    if (onPeriodChange) {
+      onPeriodChange({ year: new Date().getFullYear(), month: '' });
+    }
+  };
+
+  const currentMonthName = selectedMonth
+    ? months.find(m => m.value === String(selectedMonth))?.name
+    : 'All Months';
+
   return (
     <div className="view-body">
-      {/* Metrics Row */}
+      {/* 1. Year & Month Accounting Filter Toolbar */}
+      <div className="card" style={{ padding: '14px 20px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Calendar size={18} color="#003366" />
+            <span style={{ fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>
+              Financial Period:
+            </span>
+            <span style={{
+              fontSize: '12px',
+              fontWeight: 600,
+              color: '#003366',
+              background: '#e0f2fe',
+              padding: '3px 10px',
+              borderRadius: '12px'
+            }}>
+              {selectedYear === 'all' ? 'All Recorded Years' : `Year ${selectedYear}`} • {currentMonthName}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+            {/* Year Dropdown */}
+            <select
+              className="form-control"
+              style={{ width: '130px', padding: '6px 10px', fontSize: '13px' }}
+              value={selectedYear}
+              onChange={(e) => handleApplyPeriod(e.target.value, selectedMonth)}
+            >
+              <option value="all">All Years</option>
+              {availableYears.map((yr) => (
+                <option key={yr} value={yr}>Year {yr}</option>
+              ))}
+            </select>
+
+            {/* Month Dropdown */}
+            <select
+              className="form-control"
+              style={{ width: '150px', padding: '6px 10px', fontSize: '13px' }}
+              value={selectedMonth}
+              onChange={(e) => handleApplyPeriod(selectedYear, e.target.value)}
+            >
+              <option value="">All Months</option>
+              {months.map((m) => (
+                <option key={m.value} value={m.value}>{m.name}</option>
+              ))}
+            </select>
+
+            {(selectedMonth || selectedYear !== new Date().getFullYear()) && (
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                onClick={handleResetPeriod}
+                title="Reset to current year"
+              >
+                Reset Filter
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Metrics Row (Period Specific) */}
       <div className="metrics-grid">
         <div className="metric-card emerald">
           <div className="metric-header">
-            <span className="metric-title">Total Contributions</span>
+            <span className="metric-title">
+              {selectedMonth ? `${currentMonthName} Inflows` : (selectedYear === 'all' ? 'Total Inflows (All Time)' : `Inflows (${selectedYear})`)}
+            </span>
             <div className="metric-icon-box" style={{ color: '#059669', backgroundColor: '#ecfdf5' }}>
               <IndianRupee size={18} />
             </div>
@@ -43,33 +157,44 @@ export default function DashboardView({
           <div className="metric-value">{formatCurrency(stats?.totalCollections)}</div>
           <div className="metric-sub positive">
             <TrendingUp size={13} />
-            <span>Audited Member Vouchers</span>
+            <span>{stats?.totalReceipts || 0} Member Receipts Recorded</span>
+          </div>
+        </div>
+
+        <div className="metric-card rose">
+          <div className="metric-header">
+            <span className="metric-title">
+              {selectedMonth ? `${currentMonthName} Expenses` : (selectedYear === 'all' ? 'Total Expenses (All Time)' : `Expenses (${selectedYear})`)}
+            </span>
+            <div className="metric-icon-box" style={{ color: '#e11d48', backgroundColor: '#ffe4e6' }}>
+              <TrendingDown size={18} />
+            </div>
+          </div>
+          <div className="metric-value" style={{ color: '#be123c' }}>
+            {formatCurrency(stats?.totalExpenses)}
+          </div>
+          <div className="metric-sub">
+            <span>{stats?.totalExpensesCount || 0} Expense Vouchers</span>
           </div>
         </div>
 
         <div className="metric-card sky">
           <div className="metric-header">
-            <span className="metric-title">This Month Inflows</span>
-            <div className="metric-icon-box" style={{ color: '#0284c7', backgroundColor: '#f0f9ff' }}>
-              <TrendingUp size={18} />
+            <span className="metric-title">
+              {selectedMonth ? `${currentMonthName} Net Balance` : (selectedYear === 'all' ? 'Net Balance (All Time)' : `Net Balance (${selectedYear})`)}
+            </span>
+            <div className="metric-icon-box" style={{
+              color: (stats?.netBalance || 0) >= 0 ? '#0284c7' : '#e11d48',
+              backgroundColor: (stats?.netBalance || 0) >= 0 ? '#f0f9ff' : '#ffe4e6'
+            }}>
+              <CreditCard size={18} />
             </div>
           </div>
-          <div className="metric-value">{formatCurrency(stats?.monthCollections)}</div>
-          <div className="metric-sub">
-            <span>{stats?.monthReceipts || 0} member receipts this month</span>
+          <div className="metric-value" style={{ color: (stats?.netBalance || 0) >= 0 ? '#0284c7' : '#e11d48' }}>
+            {formatCurrency(stats?.netBalance)}
           </div>
-        </div>
-
-        <div className="metric-card indigo">
-          <div className="metric-header">
-            <span className="metric-title">Total Receipts Issued</span>
-            <div className="metric-icon-box" style={{ color: '#4f46e5', backgroundColor: '#eef2ff' }}>
-              <Receipt size={18} />
-            </div>
-          </div>
-          <div className="metric-value">{stats?.totalReceipts || 0}</div>
           <div className="metric-sub">
-            <span>Official Vouchers</span>
+            <span>Inflows minus Outflows</span>
           </div>
         </div>
 
@@ -87,6 +212,196 @@ export default function DashboardView({
         </div>
       </div>
 
+      {/* Monthly Summary Strip */}
+      <div style={{
+        background: '#ffffff',
+        border: '1px solid #e2e8f0',
+        borderRadius: '12px',
+        padding: '12px 20px',
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '24px',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: '20px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: '#334155', textTransform: 'uppercase' }}>
+            Current Calendar Month ({new Date().toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}):
+          </span>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', fontSize: '13px' }}>
+          <div>
+            <span style={{ color: '#64748b' }}>Inflow: </span>
+            <strong style={{ color: '#059669' }}>{formatCurrency(stats?.monthCollections)}</strong>
+            <span style={{ color: '#94a3b8', fontSize: '11px', marginLeft: '4px' }}>({stats?.monthReceipts || 0} receipts)</span>
+          </div>
+          <div style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '16px' }}>
+            <span style={{ color: '#64748b' }}>Expense: </span>
+            <strong style={{ color: '#e11d48' }}>{formatCurrency(stats?.monthExpenses)}</strong>
+            <span style={{ color: '#94a3b8', fontSize: '11px', marginLeft: '4px' }}>({stats?.monthExpensesCount || 0} vouchers)</span>
+          </div>
+          <div style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '16px' }}>
+            <span style={{ color: '#64748b' }}>Month Net: </span>
+            <strong style={{ color: (stats?.monthNetBalance || 0) >= 0 ? '#0284c7' : '#e11d48' }}>
+              {formatCurrency(stats?.monthNetBalance)}
+            </strong>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            type="button"
+            className="btn btn-emerald btn-sm"
+            onClick={onOpenNewReceipt}
+            style={{ padding: '6px 12px' }}
+          >
+            <PlusCircle size={13} />
+            <span>+ Receipt</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-rose btn-sm"
+            onClick={onOpenNewExpense}
+            style={{ padding: '6px 12px' }}
+          >
+            <ArrowDownRight size={13} />
+            <span>+ Expense</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. MONTHLY COMPARATIVE TABLE (DONATIONS VS EXPENSES) */}
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="card-title">
+            <TrendingUp size={18} color="#003366" />
+            <span>Monthly Inflows vs Expenses Breakdown (Year {stats?.comparisonYear || selectedYear || 2026})</span>
+          </div>
+          <span style={{ fontSize: '12px', color: '#64748b' }}>
+            12-Month Audited View
+          </span>
+        </div>
+
+        <div className="table-responsive">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Month</th>
+                <th style={{ textAlign: 'right' }}>Donations / Inflows (₹)</th>
+                <th style={{ textAlign: 'center' }}>Receipts</th>
+                <th style={{ textAlign: 'right' }}>Expenses / Outflows (₹)</th>
+                <th style={{ textAlign: 'center' }}>Vouchers</th>
+                <th style={{ textAlign: 'right' }}>Net Balance (₹)</th>
+                <th style={{ textAlign: 'center' }}>Status</th>
+                <th style={{ textAlign: 'center' }}>View Records</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats?.monthlyComparison?.map((item) => {
+                const isSelected = String(selectedMonth) === String(item.month);
+                const hasActivity = item.donations > 0 || item.expenses > 0;
+                return (
+                  <tr
+                    key={item.month}
+                    style={{
+                      backgroundColor: isSelected ? '#f0f9ff' : (hasActivity ? '#ffffff' : '#fcfcfc'),
+                      fontWeight: isSelected ? 600 : 400
+                    }}
+                  >
+                    <td>
+                      <span style={{ fontWeight: 600, color: hasActivity ? '#0f172a' : '#64748b' }}>
+                        {item.monthName} {stats?.comparisonYear}
+                      </span>
+                    </td>
+
+                    {/* Donations */}
+                    <td style={{ textAlign: 'right', fontWeight: 600, color: item.donations > 0 ? '#059669' : '#94a3b8' }}>
+                      {formatCurrency(item.donations)}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span className="receipt-num-badge" style={{ background: item.receiptsCount > 0 ? '#ecfdf5' : '#f1f5f9', color: item.receiptsCount > 0 ? '#065f46' : '#94a3b8' }}>
+                        {item.receiptsCount}
+                      </span>
+                    </td>
+
+                    {/* Expenses */}
+                    <td style={{ textAlign: 'right', fontWeight: 600, color: item.expenses > 0 ? '#be123c' : '#94a3b8' }}>
+                      {formatCurrency(item.expenses)}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span className="receipt-num-badge" style={{ background: item.expensesCount > 0 ? '#ffe4e6' : '#f1f5f9', color: item.expensesCount > 0 ? '#be123c' : '#94a3b8' }}>
+                        {item.expensesCount}
+                      </span>
+                    </td>
+
+                    {/* Net Balance */}
+                    <td style={{
+                      textAlign: 'right',
+                      fontWeight: 700,
+                      color: item.net > 0 ? '#059669' : (item.net < 0 ? '#be123c' : '#64748b')
+                    }}>
+                      {formatCurrency(item.net)}
+                    </td>
+
+                    {/* Status */}
+                    <td style={{ textAlign: 'center' }}>
+                      {item.net > 0 ? (
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: '#059669', background: '#ecfdf5', padding: '3px 8px', borderRadius: '6px' }}>
+                          Surplus
+                        </span>
+                      ) : item.net < 0 ? (
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: '#be123c', background: '#ffe4e6', padding: '3px 8px', borderRadius: '6px' }}>
+                          Deficit
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>Balanced</span>
+                      )}
+                    </td>
+
+                    {/* Quick navigation */}
+                    <td style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          style={{ padding: '3px 8px', fontSize: '11px' }}
+                          title={`View receipts for ${item.shortName} ${stats?.comparisonYear}`}
+                          onClick={() => {
+                            if (onSelectMonthFilter) {
+                              onSelectMonthFilter('receipts', stats?.comparisonYear, item.month);
+                            } else {
+                              setActiveTab('receipts');
+                            }
+                          }}
+                        >
+                          Receipts
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          style={{ padding: '3px 8px', fontSize: '11px', color: '#be123c', borderColor: '#fecdd3' }}
+                          title={`View expenses for ${item.shortName} ${stats?.comparisonYear}`}
+                          onClick={() => {
+                            if (onSelectMonthFilter) {
+                              onSelectMonthFilter('expenses', stats?.comparisonYear, item.month);
+                            } else {
+                              setActiveTab('expenses');
+                            }
+                          }}
+                        >
+                          Expenses
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* Member Inflow Breakdown & Quick Action Bar */}
       <div className="dashboard-split-grid">
         {/* Payment Method Distribution Card */}
@@ -94,7 +409,7 @@ export default function DashboardView({
           <div className="card-header">
             <div className="card-title">
               <CreditCard size={18} color="#003366" />
-              <span>Monthly Member Contributions by Payment Mode</span>
+              <span>Receipts by Payment Mode ({selectedYear === 'all' ? 'All Time' : selectedYear})</span>
             </div>
           </div>
           <div className="table-responsive">
@@ -122,7 +437,7 @@ export default function DashboardView({
                 ) : (
                   <tr>
                     <td colSpan={3} style={{ textAlign: 'center', color: '#94a3b8', padding: '24px' }}>
-                      No member receipts recorded yet.
+                      No receipts recorded for this period.
                     </td>
                   </tr>
                 )}
@@ -131,49 +446,90 @@ export default function DashboardView({
           </div>
         </div>
 
-        {/* Quick Auditing & One-Click PDF Action Panel */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
+        {/* Expenses Category Breakdown Card */}
+        <div className="card">
           <div className="card-header">
             <div className="card-title">
-              <img src="/logo.png" alt="Anbin Unavu" style={{ width: 18, height: 18, borderRadius: 3, objectFit: 'contain' }} />
-              <span>Trust Compliance & Export</span>
+              <Tag size={18} color="#be123c" />
+              <span>Expenses by Category ({selectedYear === 'all' ? 'All Time' : selectedYear})</span>
             </div>
           </div>
-          <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', flex: 1, justifyContent: 'center' }}>
-            <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-              <div style={{ fontWeight: 600, fontSize: '13px', color: '#0f172a', marginBottom: '4px' }}>
-                One-Click Complete Accounts Statement
-              </div>
-              <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '14px', lineHeight: 1.5 }}>
-                Generate an official, auditor-ready multi-page statement containing full receipts ledger, payment method distribution, and trustee certification in one click.
-              </p>
-              <button
-                className="btn btn-one-click-pdf"
-                style={{ width: '100%' }}
-                onClick={onExportAllPdf}
-              >
-                <FileDown size={16} />
-                <span>Download All Accounts PDF</span>
-              </button>
-            </div>
+          <div className="table-responsive">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th>Vouchers</th>
+                  <th style={{ textAlign: 'right' }}>Total Disbursed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats?.expenseCategoryBreakdown?.length > 0 ? (
+                  stats.expenseCategoryBreakdown.map((c, i) => (
+                    <tr key={i}>
+                      <td style={{ fontWeight: 600, color: '#0f172a' }}>{c.category}</td>
+                      <td>
+                        <span className="receipt-num-badge" style={{ background: '#ffe4e6', color: '#be123c' }}>
+                          {c.count}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#be123c' }}>
+                        {formatCurrency(c.total)}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={3} style={{ textAlign: 'center', color: '#94a3b8', padding: '24px' }}>
+                      No expenses recorded for this period.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
 
-            <div style={{ background: '#ecfdf5', padding: '16px', borderRadius: '10px', border: '1px solid #a7f3d0' }}>
-              <div style={{ fontWeight: 600, fontSize: '13px', color: '#065f46', marginBottom: '4px' }}>
-                Generate New Bill / 80G Receipt
-              </div>
-              <p style={{ fontSize: '12px', color: '#047857', marginBottom: '14px' }}>
-                Issue a numbered receipt, automatically convert amount to words, send to email via SMTP, and share on WhatsApp.
-              </p>
-              <button
-                className="btn btn-emerald"
-                style={{ width: '100%' }}
-                onClick={onOpenNewReceipt}
-              >
-                <PlusCircle size={16} />
-                <span>Create New Receipt Now</span>
-              </button>
+      {/* Quick Compliance Export Cards Strip */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+        <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '13.5px', color: '#003366', marginBottom: '4px' }}>
+              All Accounts & Receipts Statement
             </div>
+            <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '12px' }}>
+              Export official audited multi-page PDF statement of all member donation receipts and certification.
+            </p>
           </div>
+          <button
+            className="btn btn-one-click-pdf"
+            onClick={onExportAllPdf}
+          >
+            <FileDown size={15} />
+            <span>Download All Receipts PDF</span>
+          </button>
+        </div>
+
+        <div style={{ background: '#fff1f2', padding: '16px', borderRadius: '10px', border: '1px solid #fecdd3', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '13.5px', color: '#9f1239', marginBottom: '4px' }}>
+              Consolidated Expenses Ledger Statement
+            </div>
+            <p style={{ fontSize: '12px', color: '#be123c', marginBottom: '12px' }}>
+              Export official audited PDF statement of trust expenditures and payment vouchers for this period.
+            </p>
+          </div>
+          <a
+            href={`${API_BASE}/expenses/export/all-pdf?year=${selectedYear}&month=${selectedMonth}`}
+            target="_blank"
+            rel="noreferrer"
+            className="btn btn-rose"
+            style={{ textDecoration: 'none', justifyContent: 'center' }}
+          >
+            <FileDown size={15} />
+            <span>Download Expenses PDF</span>
+          </a>
         </div>
       </div>
 
@@ -273,6 +629,113 @@ export default function DashboardView({
                 <tr>
                   <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#94a3b8' }}>
                     No recent receipts found. Click "Issue New Receipt" to start.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Recent Expenses Table */}
+      <div className="card" style={{ marginTop: '20px' }}>
+        <div className="card-header">
+          <div className="card-title">
+            <span style={{ color: '#be123c' }}>Recent Expenses & Outflows</span>
+          </div>
+          <button
+            className="btn btn-outline btn-sm"
+            onClick={() => setActiveTab('expenses')}
+          >
+            <span>View All Expenses</span>
+            <ExternalLink size={13} />
+          </button>
+        </div>
+
+        <div className="table-responsive">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Voucher No</th>
+                <th>Date</th>
+                <th>Paid To (Payee)</th>
+                <th>Category</th>
+                <th>Payment Mode</th>
+                <th>Notes / Bill Ref</th>
+                <th style={{ textAlign: 'right' }}>Amount</th>
+                <th style={{ textAlign: 'center' }}>PDF</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats?.recentExpenses?.length > 0 ? (
+                stats.recentExpenses.map((exp) => (
+                  <tr key={exp.id}>
+                    <td>
+                      <span
+                        style={{
+                          fontFamily: 'monospace',
+                          fontWeight: 700,
+                          color: '#be123c',
+                          background: '#ffe4e6',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                        }}
+                      >
+                        {exp.expense_number}
+                      </span>
+                    </td>
+                    <td>
+                      {new Date(exp.expense_date).toLocaleDateString('en-IN', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </td>
+                    <td style={{ fontWeight: 600, color: '#0f172a' }}>
+                      {exp.payee_name}
+                    </td>
+                    <td>
+                      <span
+                        style={{
+                          fontSize: '11.5px',
+                          fontWeight: 600,
+                          padding: '2px 8px',
+                          borderRadius: '6px',
+                          background: '#f1f5f9',
+                          color: '#475569',
+                        }}
+                      >
+                        {exp.category}
+                      </span>
+                    </td>
+                    <td style={{ fontSize: '12px' }}>{exp.payment_mode}</td>
+                    <td style={{ fontSize: '12px', color: '#64748b' }}>
+                      {exp.bill_number ? `Bill: ${exp.bill_number} ` : ''}
+                      {exp.notes ? `(${exp.notes})` : ''}
+                      {!exp.bill_number && !exp.notes ? '—' : ''}
+                    </td>
+                    <td style={{ textAlign: 'right', fontWeight: 700, color: '#be123c' }}>
+                      {formatCurrency(parseFloat(exp.amount))}
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <a
+                        href={`${API_BASE}/expenses/${exp.id}/pdf`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-outline btn-sm"
+                        style={{ padding: '4px 8px', color: '#be123c', borderColor: '#fecdd3' }}
+                        title="Download Voucher PDF"
+                      >
+                        <FileDown size={13} />
+                      </a>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '30px', color: '#94a3b8' }}>
+                    No expenses recorded yet. Click "Record Expense" to log expenditures.
                   </td>
                 </tr>
               )}
