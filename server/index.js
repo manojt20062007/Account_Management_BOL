@@ -6,7 +6,12 @@ require('dotenv').config();
 
 const { query, initDatabase } = require('./db');
 const { numberToWordsINR } = require('./utils/numberToWords');
-const { generateReceiptPdf, generateAllAccountsPdf } = require('./services/pdfService');
+const {
+  generateReceiptPdf,
+  generateAllAccountsPdf,
+  generateExpenseVoucherPdf,
+  generateExpensesLedgerPdf,
+} = require('./services/pdfService');
 const { sendReceiptEmail, verifySmtpConnection } = require('./services/mailerService');
 const { hashPassword, verifyPassword, generateToken, verifyToken } = require('./utils/auth');
 
@@ -423,17 +428,68 @@ app.get('/api/user/portal', authenticateToken, async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// 1. DASHBOARD & STATS
+// 1. DASHBOARD & STATS (WITH YEARLY & MONTHLY COMPARISON)
 // ---------------------------------------------------------------------------
 app.get('/api/dashboard/stats', async (req, res) => {
   try {
+    const { year, month } = req.query;
+
+    // Available distinct years across receipts and expenses
+    const yearsRes = await query(`
+      SELECT DISTINCT yr FROM (
+        SELECT EXTRACT(YEAR FROM receipt_date)::int as yr FROM receipts
+        UNION
+        SELECT EXTRACT(YEAR FROM expense_date)::int as yr FROM expenses
+      ) sub WHERE yr IS NOT NULL ORDER BY yr DESC
+    `);
+    const availableYears = yearsRes.rows.map(r => r.yr);
+    if (!availableYears.includes(new Date().getFullYear())) {
+      availableYears.unshift(new Date().getFullYear());
+    }
+
+    // Default target year is selected year or latest available year
+    const selectedYear = year && year !== 'all' ? parseInt(year) : (year === 'all' ? null : (availableYears[0] || new Date().getFullYear()));
+    const selectedMonth = month && month !== 'all' ? parseInt(month) : null;
+
+    // Filter clauses for receipts and expenses
+    let receiptWhere = 'WHERE 1=1';
+    let expenseWhere = 'WHERE 1=1';
+    const rParams = [];
+    const eParams = [];
+
+    if (selectedYear) {
+      rParams.push(selectedYear);
+      receiptWhere += ` AND EXTRACT(YEAR FROM receipt_date) = $${rParams.length}`;
+      eParams.push(selectedYear);
+      expenseWhere += ` AND EXTRACT(YEAR FROM expense_date) = $${eParams.length}`;
+    }
+
+    if (selectedMonth) {
+      rParams.push(selectedMonth);
+      receiptWhere += ` AND EXTRACT(MONTH FROM receipt_date) = $${rParams.length}`;
+      eParams.push(selectedMonth);
+      expenseWhere += ` AND EXTRACT(MONTH FROM expense_date) = $${eParams.length}`;
+    }
+
+    // Collections & Receipts for selected period
     const totalRes = await query(`
       SELECT 
         COALESCE(SUM(amount), 0) as total_collections,
         COUNT(id) as total_receipts
       FROM receipts
-    `);
+      ${receiptWhere}
+    `, rParams);
 
+    // Expenses for selected period
+    const totalExpensesRes = await query(`
+      SELECT 
+        COALESCE(SUM(amount), 0) as total_expenses,
+        COUNT(id) as total_expenses_count
+      FROM expenses
+      ${expenseWhere}
+    `, eParams);
+
+    // Current Calendar Month stats (for current month performance strip)
     const monthRes = await query(`
       SELECT 
         COALESCE(SUM(amount), 0) as month_collections,
@@ -442,36 +498,188 @@ app.get('/api/dashboard/stats', async (req, res) => {
       WHERE DATE_TRUNC('month', receipt_date) = DATE_TRUNC('month', CURRENT_DATE)
     `);
 
+    const monthExpensesRes = await query(`
+      SELECT 
+        COALESCE(SUM(amount), 0) as month_expenses,
+        COUNT(id) as month_expenses_count
+      FROM expenses
+      WHERE DATE_TRUNC('month', expense_date) = DATE_TRUNC('month', CURRENT_DATE)
+    `);
+
     const donorsRes = await query(`SELECT COUNT(*) as total_donors FROM donors`);
 
+    // Head breakdown for selected period
     const headBreakdownRes = await query(`
       SELECT head_name, COUNT(*) as count, SUM(amount) as total
       FROM receipts
+      ${receiptWhere}
       GROUP BY head_name
       ORDER BY total DESC
-    `);
+    `, rParams);
 
+    // Mode breakdown for selected period
     const modeBreakdownRes = await query(`
       SELECT payment_mode, COUNT(*) as count, SUM(amount) as total
       FROM receipts
+      ${receiptWhere}
       GROUP BY payment_mode
       ORDER BY total DESC
-    `);
+    `, rParams);
 
+    // Expense Category breakdown for selected period
+    const expenseCategoryRes = await query(`
+      SELECT category, COUNT(*) as count, SUM(amount) as total
+      FROM expenses
+      ${expenseWhere}
+      GROUP BY category
+      ORDER BY total DESC
+    `, eParams);
+
+    // Recent records
     const recentReceiptsRes = await query(`
       SELECT * FROM receipts
-      ORDER BY id DESC
+      ORDER BY receipt_date DESC, id DESC
       LIMIT 6
     `);
+
+    const recentExpensesRes = await query(`
+      SELECT * FROM expenses
+      ORDER BY expense_date DESC, id DESC
+      LIMIT 6
+    `);
+
+    // All-time totals
+    const allTimeRes = await query(`
+      SELECT 
+        (SELECT COALESCE(SUM(amount), 0) FROM receipts) as all_time_collections,
+        (SELECT COUNT(id) FROM receipts) as all_time_receipts,
+        (SELECT COALESCE(SUM(amount), 0) FROM expenses) as all_time_expenses,
+        (SELECT COUNT(id) FROM expenses) as all_time_expenses_count
+    `);
+
+    // Monthly comparison breakdown for target year
+    const comparisonYear = selectedYear || (availableYears[0] || new Date().getFullYear());
+    const monthlyComparisonRes = await query(`
+      SELECT 
+        m.month,
+        COALESCE(r.total_receipts, 0)::int as receipts_count,
+        COALESCE(r.total_amount, 0)::numeric as donations,
+        COALESCE(e.total_expenses, 0)::int as expenses_count,
+        COALESCE(e.total_amount, 0)::numeric as expenses
+      FROM generate_series(1, 12) m(month)
+      LEFT JOIN (
+        SELECT 
+          EXTRACT(MONTH FROM receipt_date)::int as month,
+          COUNT(id) as total_receipts,
+          SUM(amount) as total_amount
+        FROM receipts
+        WHERE EXTRACT(YEAR FROM receipt_date) = $1
+        GROUP BY EXTRACT(MONTH FROM receipt_date)
+      ) r ON m.month = r.month
+      LEFT JOIN (
+        SELECT 
+          EXTRACT(MONTH FROM expense_date)::int as month,
+          COUNT(id) as total_expenses,
+          SUM(amount) as total_amount
+        FROM expenses
+        WHERE EXTRACT(YEAR FROM expense_date) = $1
+        GROUP BY EXTRACT(MONTH FROM expense_date)
+      ) e ON m.month = e.month
+      ORDER BY m.month ASC
+    `, [comparisonYear]);
+
+    const monthNames = [
+      '', 'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    const monthShort = [
+      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+
+    const monthlyComparison = monthlyComparisonRes.rows.map(row => {
+      const mNum = parseInt(row.month);
+      const don = parseFloat(row.donations);
+      const exp = parseFloat(row.expenses);
+      return {
+        month: mNum,
+        monthName: monthNames[mNum],
+        shortName: monthShort[mNum],
+        donations: don,
+        receiptsCount: parseInt(row.receipts_count),
+        expenses: exp,
+        expensesCount: parseInt(row.expenses_count),
+        net: don - exp,
+      };
+    });
+
+    // Yearly comparison summary
+    const yearlyComparisonRes = await query(`
+      SELECT 
+        COALESCE(r.yr, e.yr)::int as year,
+        COALESCE(r.total_amount, 0)::numeric as donations,
+        COALESCE(r.total_receipts, 0)::int as receipts_count,
+        COALESCE(e.total_amount, 0)::numeric as expenses,
+        COALESCE(e.total_expenses, 0)::int as expenses_count
+      FROM (
+        SELECT EXTRACT(YEAR FROM receipt_date)::int as yr, COUNT(id) as total_receipts, SUM(amount) as total_amount
+        FROM receipts GROUP BY yr
+      ) r
+      FULL OUTER JOIN (
+        SELECT EXTRACT(YEAR FROM expense_date)::int as yr, COUNT(id) as total_expenses, SUM(amount) as total_amount
+        FROM expenses GROUP BY yr
+      ) e ON r.yr = e.yr
+      WHERE COALESCE(r.yr, e.yr) IS NOT NULL
+      ORDER BY year DESC
+    `);
+
+    const yearlyComparison = yearlyComparisonRes.rows.map(row => {
+      const don = parseFloat(row.donations);
+      const exp = parseFloat(row.expenses);
+      return {
+        year: parseInt(row.year),
+        donations: don,
+        receiptsCount: parseInt(row.receipts_count),
+        expenses: exp,
+        expensesCount: parseInt(row.expenses_count),
+        net: don - exp,
+      };
+    });
+
+    const totalCollections = parseFloat(totalRes.rows[0].total_collections);
+    const totalExpenses = parseFloat(totalExpensesRes.rows[0].total_expenses);
+    const monthCollections = parseFloat(monthRes.rows[0].month_collections);
+    const monthExpenses = parseFloat(monthExpensesRes.rows[0].month_expenses);
 
     res.json({
       success: true,
       data: {
-        totalCollections: parseFloat(totalRes.rows[0].total_collections),
+        totalCollections,
         totalReceipts: parseInt(totalRes.rows[0].total_receipts),
-        monthCollections: parseFloat(monthRes.rows[0].month_collections),
+        totalExpenses,
+        totalExpensesCount: parseInt(totalExpensesRes.rows[0].total_expenses_count),
+        netBalance: totalCollections - totalExpenses,
+
+        monthCollections,
         monthReceipts: parseInt(monthRes.rows[0].month_receipts),
+        monthExpenses,
+        monthExpensesCount: parseInt(monthExpensesRes.rows[0].month_expenses_count),
+        monthNetBalance: monthCollections - monthExpenses,
+
+        allTimeCollections: parseFloat(allTimeRes.rows[0].all_time_collections),
+        allTimeReceipts: parseInt(allTimeRes.rows[0].all_time_receipts),
+        allTimeExpenses: parseFloat(allTimeRes.rows[0].all_time_expenses),
+        allTimeExpensesCount: parseInt(allTimeRes.rows[0].all_time_expenses_count),
+        allTimeNetBalance: parseFloat(allTimeRes.rows[0].all_time_collections) - parseFloat(allTimeRes.rows[0].all_time_expenses),
+
         totalDonors: parseInt(donorsRes.rows[0].total_donors),
+        availableYears,
+        selectedYear: selectedYear || 'all',
+        selectedMonth: selectedMonth || 'all',
+        comparisonYear,
+        monthlyComparison,
+        yearlyComparison,
+
         headBreakdown: headBreakdownRes.rows.map(r => ({
           name: r.head_name,
           count: parseInt(r.count),
@@ -482,7 +690,13 @@ app.get('/api/dashboard/stats', async (req, res) => {
           count: parseInt(r.count),
           total: parseFloat(r.total),
         })),
+        expenseCategoryBreakdown: expenseCategoryRes.rows.map(r => ({
+          category: r.category,
+          count: parseInt(r.count),
+          total: parseFloat(r.total),
+        })),
         recentReceipts: recentReceiptsRes.rows,
+        recentExpenses: recentExpensesRes.rows,
       },
     });
   } catch (err) {
@@ -738,7 +952,7 @@ app.post('/api/donors', async (req, res) => {
 // ---------------------------------------------------------------------------
 app.get('/api/receipts', async (req, res) => {
   try {
-    const { search, head_id, payment_mode, from_date, to_date } = req.query;
+    const { search, head_id, payment_mode, from_date, to_date, year, month } = req.query;
     let queryStr = `SELECT * FROM receipts WHERE 1=1`;
     const params = [];
 
@@ -765,6 +979,16 @@ app.get('/api/receipts', async (req, res) => {
     if (to_date) {
       params.push(to_date);
       queryStr += ` AND receipt_date <= $${params.length}`;
+    }
+
+    if (year && year !== 'all') {
+      params.push(parseInt(year));
+      queryStr += ` AND EXTRACT(YEAR FROM receipt_date) = $${params.length}`;
+    }
+
+    if (month && month !== 'all') {
+      params.push(parseInt(month));
+      queryStr += ` AND EXTRACT(MONTH FROM receipt_date) = $${params.length}`;
     }
 
     queryStr += ` ORDER BY id DESC`;
@@ -930,6 +1154,277 @@ app.post('/api/receipts', async (req, res) => {
   } catch (err) {
     await query('ROLLBACK');
     console.error('Error generating receipt:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 5B. EXPENSES & PAYMENT VOUCHERS
+// ---------------------------------------------------------------------------
+app.get('/api/expenses', async (req, res) => {
+  try {
+    const { search, category, payment_mode, from_date, to_date, year, month } = req.query;
+    let queryStr = `SELECT * FROM expenses WHERE 1=1`;
+    const params = [];
+
+    if (search) {
+      params.push(`%${search}%`);
+      queryStr += ` AND (expense_number ILIKE $${params.length} OR payee_name ILIKE $${params.length} OR reference_no ILIKE $${params.length} OR bill_number ILIKE $${params.length} OR notes ILIKE $${params.length})`;
+    }
+
+    if (category) {
+      params.push(category);
+      queryStr += ` AND category = $${params.length}`;
+    }
+
+    if (payment_mode) {
+      params.push(payment_mode);
+      queryStr += ` AND payment_mode = $${params.length}`;
+    }
+
+    if (from_date) {
+      params.push(from_date);
+      queryStr += ` AND expense_date >= $${params.length}`;
+    }
+
+    if (to_date) {
+      params.push(to_date);
+      queryStr += ` AND expense_date <= $${params.length}`;
+    }
+
+    if (year && year !== 'all') {
+      params.push(parseInt(year));
+      queryStr += ` AND EXTRACT(YEAR FROM expense_date) = $${params.length}`;
+    }
+
+    if (month && month !== 'all') {
+      params.push(parseInt(month));
+      queryStr += ` AND EXTRACT(MONTH FROM expense_date) = $${params.length}`;
+    }
+
+    queryStr += ` ORDER BY expense_date DESC, id DESC`;
+
+    const result = await query(queryStr, params);
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error('Error fetching expenses:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/expenses/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const result = await query('SELECT * FROM expenses WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Expense record not found' });
+    }
+    res.json({ success: true, data: result.rows[0] });
+  } catch (err) {
+    console.error('Error fetching expense:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/expenses', async (req, res) => {
+  await query('BEGIN');
+  try {
+    const {
+      payee_name,
+      amount,
+      category,
+      payment_mode = 'Cash',
+      expense_date,
+      reference_no = '',
+      bill_number = '',
+      head_id,
+      notes = '',
+    } = req.body;
+
+    if (!payee_name || !payee_name.trim()) {
+      await query('ROLLBACK');
+      return res.status(400).json({ success: false, error: 'Payee / Vendor name is required' });
+    }
+
+    const amountNum = parseFloat(amount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      await query('ROLLBACK');
+      return res.status(400).json({ success: false, error: 'A valid expense amount is required' });
+    }
+
+    if (!category || !category.trim()) {
+      await query('ROLLBACK');
+      return res.status(400).json({ success: false, error: 'Expense category is required' });
+    }
+
+    // 1. Fetch settings for prefix & next number
+    const settingsRes = await query('SELECT * FROM trust_settings WHERE id = 1');
+    const settings = settingsRes.rows[0] || {};
+
+    const currentYear = new Date().getFullYear();
+    const nextYear = (currentYear + 1).toString().slice(2);
+    const fyString = `${currentYear}-${nextYear}`;
+    const prefix = settings.expense_prefix || 'EXP';
+    const num = settings.next_expense_number || 1001;
+    const expenseNumber = `${prefix}/${fyString}/${num.toString().padStart(4, '0')}`;
+
+    // 2. Amount in words
+    const amountWords = numberToWordsINR(amountNum);
+
+    // 3. Resolve head name if head_id is supplied
+    let validHeadId = null;
+    let resolvedHeadName = null;
+    if (head_id) {
+      const headCheck = await query('SELECT id, name FROM account_heads WHERE id = $1', [parseInt(head_id)]);
+      if (headCheck.rows.length > 0) {
+        validHeadId = headCheck.rows[0].id;
+        resolvedHeadName = headCheck.rows[0].name;
+      }
+    }
+
+    const resolvedDate = expense_date ? expense_date : new Date().toISOString().slice(0, 10);
+
+    const insertResult = await query(`
+      INSERT INTO expenses (
+        expense_number,
+        expense_date,
+        category,
+        payee_name,
+        amount,
+        amount_words,
+        payment_mode,
+        reference_no,
+        bill_number,
+        head_id,
+        head_name,
+        notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *
+    `, [
+      expenseNumber,
+      resolvedDate,
+      category.trim(),
+      payee_name.trim(),
+      amountNum,
+      amountWords,
+      payment_mode,
+      reference_no ? reference_no.trim() : '',
+      bill_number ? bill_number.trim() : '',
+      validHeadId,
+      resolvedHeadName,
+      notes ? notes.trim() : '',
+    ]);
+
+    // Increment next expense number
+    await query('UPDATE trust_settings SET next_expense_number = next_expense_number + 1 WHERE id = 1');
+    await query('COMMIT');
+
+    res.json({
+      success: true,
+      data: insertResult.rows[0],
+      message: `Expense voucher ${expenseNumber} recorded successfully.`,
+    });
+  } catch (err) {
+    await query('ROLLBACK');
+    console.error('Error creating expense:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/expenses/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const delRes = await query('DELETE FROM expenses WHERE id = $1 RETURNING id, expense_number', [id]);
+    if (delRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Expense record not found' });
+    }
+    res.json({
+      success: true,
+      data: delRes.rows[0],
+      message: `Expense voucher ${delRes.rows[0].expense_number} removed.`,
+    });
+  } catch (err) {
+    console.error('Error deleting expense:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 5C. EXPENSE VOUCHER & LEDGER PDF EXPORTS
+// ---------------------------------------------------------------------------
+app.get('/api/expenses/:id/pdf', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const expenseRes = await query('SELECT * FROM expenses WHERE id = $1', [id]);
+    if (expenseRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Expense record not found' });
+    }
+    const expense = expenseRes.rows[0];
+
+    const settingsRes = await query('SELECT * FROM trust_settings WHERE id = 1');
+    const settings = settingsRes.rows[0] || {};
+
+    const pdfBuffer = await generateExpenseVoucherPdf(expense, settings);
+    const filename = `Expense_Voucher_${expense.expense_number.replace(/[\/\\]/g, '_')}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error('Error generating expense voucher PDF:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/expenses/export/all-pdf', async (req, res) => {
+  try {
+    const { search, category, payment_mode, from_date, to_date, year, month } = req.query;
+    let queryStr = `SELECT * FROM expenses WHERE 1=1`;
+    const params = [];
+
+    if (search) {
+      params.push(`%${search}%`);
+      queryStr += ` AND (expense_number ILIKE $${params.length} OR payee_name ILIKE $${params.length} OR reference_no ILIKE $${params.length} OR bill_number ILIKE $${params.length} OR notes ILIKE $${params.length})`;
+    }
+    if (category) {
+      params.push(category);
+      queryStr += ` AND category = $${params.length}`;
+    }
+    if (payment_mode) {
+      params.push(payment_mode);
+      queryStr += ` AND payment_mode = $${params.length}`;
+    }
+    if (from_date) {
+      params.push(from_date);
+      queryStr += ` AND expense_date >= $${params.length}`;
+    }
+    if (to_date) {
+      params.push(to_date);
+      queryStr += ` AND expense_date <= $${params.length}`;
+    }
+    if (year && year !== 'all') {
+      params.push(parseInt(year));
+      queryStr += ` AND EXTRACT(YEAR FROM expense_date) = $${params.length}`;
+    }
+    if (month && month !== 'all') {
+      params.push(parseInt(month));
+      queryStr += ` AND EXTRACT(MONTH FROM expense_date) = $${params.length}`;
+    }
+
+    queryStr += ` ORDER BY expense_date DESC, id DESC`;
+
+    const expensesRes = await query(queryStr, params);
+    const settingsRes = await query('SELECT * FROM trust_settings WHERE id = 1');
+    const settings = settingsRes.rows[0] || {};
+
+    const pdfBuffer = await generateExpensesLedgerPdf(expensesRes.rows, settings, { year, month });
+    const filename = `Expenses_Statement_${year ? year + '_' : ''}${new Date().toISOString().slice(0, 10)}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error('Error generating expenses ledger PDF:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });

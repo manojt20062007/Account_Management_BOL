@@ -53,6 +53,8 @@ async function initDatabase() {
         signatory_title VARCHAR(100) DEFAULT 'Managing Trustee',
         receipt_prefix VARCHAR(20) DEFAULT 'TRUST/REC',
         next_receipt_number INT DEFAULT 1001,
+        expense_prefix VARCHAR(20) DEFAULT 'EXP',
+        next_expense_number INT DEFAULT 1001,
         smtp_host VARCHAR(100) DEFAULT 'smtp.gmail.com',
         smtp_port INT DEFAULT 587,
         smtp_secure BOOLEAN DEFAULT false,
@@ -76,6 +78,10 @@ async function initDatabase() {
     // Ensure whatsapp_message column exists on existing databases & initialize default template
     await client.query(`
       ALTER TABLE trust_settings ADD COLUMN IF NOT EXISTS whatsapp_message TEXT;
+      ALTER TABLE trust_settings ADD COLUMN IF NOT EXISTS expense_prefix VARCHAR(20) DEFAULT 'EXP';
+      ALTER TABLE trust_settings ADD COLUMN IF NOT EXISTS next_expense_number INT DEFAULT 1001;
+      UPDATE trust_settings SET expense_prefix = 'EXP' WHERE expense_prefix IS NULL AND id = 1;
+      UPDATE trust_settings SET next_expense_number = 1001 WHERE next_expense_number IS NULL AND id = 1;
     `);
 
     const defaultWhatsAppTemplate = `🙏 *Namaste {donor_name}*,
@@ -197,7 +203,30 @@ Warm regards,
       );
     `);
 
-    // 6. Users / Accounts Table (Donors & Admins)
+    // 6. Expenses / Outflows Table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS expenses (
+        id SERIAL PRIMARY KEY,
+        expense_number VARCHAR(100) NOT NULL UNIQUE,
+        expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        category VARCHAR(150) NOT NULL,
+        payee_name VARCHAR(200) NOT NULL,
+        amount NUMERIC(12, 2) NOT NULL,
+        amount_words TEXT NOT NULL,
+        payment_mode VARCHAR(50) NOT NULL,
+        reference_no VARCHAR(100),
+        bill_number VARCHAR(100),
+        head_id INT REFERENCES account_heads(id) ON DELETE SET NULL,
+        head_name VARCHAR(150),
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date);
+      CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category);
+    `);
+
+    // 7. Users / Accounts Table (Donors & Admins)
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -281,6 +310,20 @@ Warm regards,
 
       // Update next receipt number
       await client.query(`UPDATE trust_settings SET next_receipt_number = 1004 WHERE id = 1;`);
+    }
+
+    // Check if sample expenses exist, if not seed initial demo expenses
+    const resExpCount = await client.query('SELECT COUNT(*) FROM expenses');
+    if (parseInt(resExpCount.rows[0].count) === 0) {
+      await client.query(`
+        INSERT INTO expenses (
+          expense_number, expense_date, category, payee_name, amount, amount_words, payment_mode, reference_no, bill_number, notes
+        ) VALUES 
+          ('EXP/2026-27/0001', CURRENT_DATE - INTERVAL '4 days', 'Annadanam & Groceries', 'Sri Krishna Wholesale Provisions', 6500.00, 'Rupees Six Thousand Five Hundred Only', 'UPI', 'UPI/261012/876543', 'INV-9821', 'Rice bags, dal, oil and vegetables for community meal'),
+          ('EXP/2026-27/0002', CURRENT_DATE - INTERVAL '2 days', 'Healthcare & Medical Aid', 'Apollo Pharmacy & Diagnostics', 3200.00, 'Rupees Three Thousand Two Hundred Only', 'Bank Transfer (NEFT/RTGS)', 'UTR-NEFT1238910', 'BILL-4412', 'Free medicine kits for medical health checkup camp'),
+          ('EXP/2026-27/0003', CURRENT_DATE - INTERVAL '1 days', 'Education & Student Support', 'National Book Center', 2400.00, 'Rupees Two Thousand Four Hundred Only', 'Cash', 'VOUCH-551', 'CH-778', 'Notebooks, pens and geometry boxes for village school students');
+      `);
+      await client.query(`UPDATE trust_settings SET next_expense_number = 1004 WHERE id = 1;`);
     }
 
     // Ensure default Admin user exists

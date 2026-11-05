@@ -836,9 +836,587 @@ function generateAllAccountsPdf(receipts, settings = {}) {
   });
 }
 
+/**
+ * Generates an official single Expense / Payment Voucher PDF
+ */
+function generateExpenseVoucherPdf(expense, settings = {}) {
+  return new Promise((resolve, reject) => {
+    try {
+      const trustName = settings.trust_name || 'Anbin Unavu';
+      const doc = new PDFDocument({
+        size: 'A4',
+        margin: 30,
+        info: {
+          Title: `Expense_Voucher_${expense.expense_number}`,
+          Author: trustName,
+          Subject: `${trustName} Payment / Expense Voucher`,
+        },
+      });
+
+      const buffers = [];
+      doc.on('data', buffers.push.bind(buffers));
+      doc.on('end', () => resolve(Buffer.concat(buffers)));
+
+      const pageWidth = doc.page.width;
+      const pageHeight = doc.page.height;
+      const margin = 28;
+      const contentWidth = pageWidth - margin * 2;
+
+      // 1. Outer Dark Navy Border (Matches Official Receipt Standard)
+      doc.rect(margin, margin, contentWidth, pageHeight - margin * 2)
+        .lineWidth(2.5)
+        .strokeColor('#003366')
+        .stroke();
+
+      // 1b. Background Watermark Image
+      if (fs.existsSync(HANDS_HEART_PATH)) {
+        const watermarkWidth = 480;
+        const watermarkHeight = 340;
+        const watermarkX = (pageWidth - watermarkWidth) / 2;
+        const watermarkY = 330;
+        doc.save();
+        doc.opacity(0.10);
+        doc.image(HANDS_HEART_PATH, watermarkX, watermarkY, { width: watermarkWidth, height: watermarkHeight });
+        doc.restore();
+      }
+
+      let y = margin + 12;
+
+      // 2. Header: Logos & Organization Details
+      const logoWidth = 110;
+      const logoHeight = 100;
+      if (fs.existsSync(LOGO_PATH)) {
+        doc.image(LOGO_PATH, margin + 12, y, { width: logoWidth, height: logoHeight });
+      }
+      if (fs.existsSync(MOTHER_PATH)) {
+        const motherW = 110;
+        const motherH = 100;
+        doc.save();
+        doc.image(MOTHER_PATH, 450, margin + 12, { width: motherW, height: motherH });
+        doc.restore();
+      }
+
+      const headerTextWidth = contentWidth - 140;
+      const headerTextX = margin + 70;
+
+      doc.font('Helvetica-Bold').fontSize(16);
+      const titleText = trustName.toUpperCase();
+      const titleWidth = doc.widthOfString(titleText);
+      const emblemSize = 50;
+      const emblemGap = 6;
+      const totalGroupWidth = titleWidth + (emblemSize * 2) + (emblemGap * 2);
+      const startX = (pageWidth - totalGroupWidth) / 2;
+
+      if (fs.existsSync(HANDS_HEART_PATH) && totalGroupWidth < headerTextWidth) {
+        doc.image(HANDS_HEART_PATH, startX - 14, y - 1, { width: 60, height: emblemSize });
+        doc.fillColor('#003366').text(titleText, startX + emblemSize + emblemGap, y, { lineBreak: false });
+        doc.image(HANDS_HEART_PATH, startX + 4 + emblemSize + emblemGap + titleWidth + emblemGap, y - 4, { width: 60, height: emblemSize });
+      } else {
+        doc.fillColor('#003366').text(titleText, headerTextX, y, { align: 'center', width: headerTextWidth });
+      }
+
+      y += 20;
+      const tamil1FontPath = path.join(__dirname, '../assets/latha1.ttf');
+      const has1TamilFont = fs.existsSync(tamil1FontPath);
+      if (has1TamilFont) {
+        doc.registerFont('TamilFont', tamil1FontPath);
+      }
+      const xcord = 230;
+      const ycord = 60;
+      if (has1TamilFont) {
+        doc.font('TamilFont').fontSize(15).fillColor('#003366')
+          .text('அன்பின் உணவு', xcord, ycord);
+      }
+      y += 25;
+
+      // Dynamic Tagline / Mission lines (Cleanly split to prevent logo collision)
+      if (settings.tagline) {
+        const taglines = settings.tagline.split(/\n|\|/).map(t => t.trim().replace(/^“|”|"$|^"/g, '')).filter(Boolean);
+        taglines.forEach((tag, idx) => {
+          doc.font('Helvetica-Bold')
+            .fontSize(9.5)
+            .fillColor(idx % 2 === 0 ? '#1e293b' : '#b91c1c')
+            .text(`“${tag}”`, headerTextX, y, { align: 'center', width: headerTextWidth });
+          y += 14;
+        });
+      }
+
+      // Address split across two lines to avoid overlapping circular cameos
+      doc.font('Helvetica')
+        .fontSize(8.5)
+        .fillColor('#334155')
+        .text('Subramanya Nagar, Kambar Street, Bye-Pass Road', headerTextX, y, { align: 'center', width: headerTextWidth });
+      y += 14;
+
+      doc.font('Helvetica')
+        .fontSize(8.5)
+        .fillColor('#334155')
+        .text('Tiruttani – 631209, Tiruvallur District, Tamilnadu.', headerTextX, y, { align: 'center', width: headerTextWidth });
+      y += 14;
+
+      // Contact & Registration Info (Only show non-empty fields)
+      const metaParts = [];
+      if (settings.reg_number && settings.reg_number.trim()) metaParts.push(`Reg No: ${settings.reg_number.trim()}`);
+      if (settings.pan_number && settings.pan_number.trim()) metaParts.push(`PAN: ${settings.pan_number.trim()}`);
+      if (settings.contact_phone && settings.contact_phone.trim()) metaParts.push(`Ph: ${settings.contact_phone.trim()}`);
+      if (metaParts.length > 0) {
+        doc.font('Helvetica')
+          .fontSize(8)
+          .fillColor('#64748b')
+          .text(metaParts.join('  •  '), headerTextX, y, { align: 'center', width: headerTextWidth });
+        y += 14;
+      }
+
+      y += 6;
+
+      // 3. Payment & Expense Voucher Banner
+      const bannerHeight = 28;
+      doc.rect(margin + 16, y, contentWidth - 32, bannerHeight)
+        .fillColor('#f1f5f9')
+        .fill();
+      doc.rect(margin + 16, y, contentWidth - 32, bannerHeight)
+        .lineWidth(1)
+        .strokeColor('#cbd5e1')
+        .stroke();
+
+      doc.font('Helvetica-Bold')
+        .fontSize(14)
+        .fillColor('#003366')
+        .text('PAYMENT & EXPENSE VOUCHER', margin + 16, y + 7, { align: 'center', width: contentWidth - 32, characterSpacing: 1 });
+
+      y += bannerHeight + 14;
+
+      // 4. Metadata Box
+      const tableX = margin + 16;
+      const tableWidth = contentWidth - 32;
+      const colWidth = tableWidth / 3;
+
+      doc.rect(tableX, y, tableWidth, 22).fillColor('#f8fafc').fill();
+      doc.rect(tableX, y, tableWidth, 22).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
+
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#003366');
+      doc.text('Voucher No.', tableX + 12, y + 7);
+      doc.text('Voucher Date', tableX + colWidth, y + 7, { align: 'center', width: colWidth });
+      doc.text('Payment Status', tableX + colWidth * 2, y + 7, { align: 'center', width: colWidth });
+      y += 22;
+
+      let formattedDate = '';
+      if (expense.expense_date) {
+        try {
+          const d = new Date(expense.expense_date);
+          formattedDate = d.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        } catch (e) {
+          formattedDate = String(expense.expense_date);
+        }
+      }
+
+      doc.rect(tableX, y, tableWidth, 24).fillColor('#ffffff').fill();
+      doc.rect(tableX, y, tableWidth, 24).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
+
+      doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#0f172a');
+      doc.text(expense.expense_number || '', tableX + 12, y + 7);
+      doc.text(formattedDate || '', tableX + colWidth, y + 7, { align: 'center', width: colWidth });
+      doc.fillColor('#059669').text('APPROVED & DISBURSED', tableX + colWidth * 2, y + 7, { align: 'center', width: colWidth });
+      y += 24 + 10;
+
+      // Helper function to draw table section
+      const drawBanner = (title, curY) => {
+        doc.rect(tableX, curY, tableWidth, 22).fillColor('#003366').fill();
+        doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#ffffff')
+          .text(title, tableX, curY + 6, { align: 'center', width: tableWidth, characterSpacing: 0.8 });
+        return curY + 22;
+      };
+
+      const drawRow = (label, value, curY, rowHeight = 24) => {
+        doc.rect(tableX, curY, tableWidth, rowHeight).fillColor('#ffffff').fill();
+        doc.rect(tableX, curY, tableWidth, rowHeight).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
+
+        doc.font('Helvetica-Bold').fontSize(9).fillColor('#0f172a')
+          .text(label, tableX + 12, curY + 7);
+
+        doc.font('Helvetica').fontSize(9).fillColor('#1e293b')
+          .text(value || '', tableX + 160, curY + 7, { width: tableWidth - 170 });
+
+        return curY + rowHeight;
+      };
+
+      // 5. Section: PAYEE & CATEGORY DETAILS
+      y = drawBanner('PAYEE & CATEGORY DETAILS', y);
+      y = drawRow('Paid To (Payee / Vendor)', expense.payee_name || '', y, 26);
+      y = drawRow('Expense Category', expense.category || '', y, 26);
+      y = drawRow('Fund / Account Head', expense.head_name || 'General Trust Expense', y, 26);
+
+      y += 10;
+
+      // 6. Section: PAYMENT & DISBURSEMENT DETAILS
+      y = drawBanner('PAYMENT & DISBURSEMENT DETAILS', y);
+
+      const amtVal = (expense.amount && !isNaN(parseFloat(expense.amount)))
+        ? `Rs. ${parseFloat(expense.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+        : '';
+      y = drawRow('Amount (INR)', amtVal, y, 26);
+      y = drawRow('Amount in Words', expense.amount_words || '', y, 28);
+      y = drawRow('Payment Mode', expense.payment_mode || 'Cash', y, 26);
+
+      const refParts = [];
+      if (expense.reference_no) refParts.push(`Txn/UTR: ${expense.reference_no}`);
+      if (expense.bill_number) refParts.push(`Bill/Invoice: ${expense.bill_number}`);
+      y = drawRow('Reference / Bill No', refParts.join('  •  ') || '—', y, 26);
+
+      if (expense.notes) {
+        y = drawRow('Purpose / Remarks', expense.notes, y, 32);
+      }
+
+      y += 24;
+
+      // 7. Signature Block (Authorized Signatory only)
+      const sigBlockW = 190;
+      const sigBlockX = tableX + tableWidth - sigBlockW;
+
+      doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#003366');
+      doc.text('Authorized Signatory', sigBlockX, y, { width: sigBlockW, align: 'center' });
+
+      if (fs.existsSync(SIGN_PATH)) {
+        const signW = 70;
+        const signH = 38;
+        const signX = sigBlockX + (sigBlockW - signW) / 2;
+        doc.image(SIGN_PATH, signX, y + 14, { width: signW, height: signH });
+      }
+
+      y += 56;
+
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#0f172a');
+      doc.text(settings.signatory_name || 'Managing Trustee', sigBlockX, y, { width: sigBlockW, align: 'center' });
+
+      y += 14;
+      doc.font('Helvetica').fontSize(8).fillColor('#64748b');
+      doc.text('Managing Trustee', sigBlockX, y, { width: sigBlockW, align: 'center' });
+
+      y += 28;
+
+      // Footer notice
+      doc.rect(tableX, y, tableWidth, 20).fillColor('#f8fafc').fill();
+      doc.rect(tableX, y, tableWidth, 20).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
+      doc.font('Helvetica-Oblique').fontSize(8).fillColor('#64748b')
+        .text('This is an official audited disbursement voucher of Anbin Unavu Charitable Trust.', tableX, y + 6, { width: tableWidth, align: 'center' });
+
+      doc.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+/**
+ * Generates an official consolidated Expenses Ledger Statement PDF (supports year & month filters)
+ */
+function generateExpensesLedgerPdf(expenses, settings = {}, filters = {}) {
+  return new Promise((resolve, reject) => {
+    try {
+      const trustName = settings.trust_name || 'Anbin Unavu';
+      const currCode = 'Rs.';
+
+      const doc = new PDFDocument({
+        size: 'A4',
+        margin: 24,
+        bufferPages: true,
+        info: {
+          Title: `${trustName.replace(/\s+/g, '_')}_Expenses_Statement_${new Date().toISOString().slice(0, 10)}`,
+          Author: trustName,
+          Subject: `${trustName} Consolidated Statement of Expenses & Outflows`,
+        },
+      });
+
+      const buffers = [];
+      doc.on('data', buffers.push.bind(buffers));
+      doc.on('end', () => resolve(Buffer.concat(buffers)));
+
+      const pageWidth = doc.page.width;
+      const pageHeight = doc.page.height;
+      const margin = 24;
+      const contentWidth = pageWidth - margin * 2;
+
+      const drawWatermark = () => {
+        if (fs.existsSync(HANDS_HEART_PATH)) {
+          doc.save();
+          doc.opacity(0.06);
+          const wmWidth = 420;
+          const wmHeight = 300;
+          doc.image(HANDS_HEART_PATH, (pageWidth - wmWidth) / 2, (pageHeight - wmHeight) / 2, {
+            width: wmWidth,
+            height: wmHeight,
+          });
+          doc.restore();
+        }
+      };
+
+      const drawPageFrame = () => {
+        doc.rect(margin - 4, margin - 4, contentWidth + 8, pageHeight - (margin * 2) + 8)
+          .lineWidth(1)
+          .strokeColor('#be123c')
+          .stroke();
+      };
+
+      drawWatermark();
+      drawPageFrame();
+
+      // Header (Rich Rose / Maroon)
+      const headerHeight = 78;
+      doc.rect(margin, margin, contentWidth, headerHeight).fillColor('#881337').fill();
+
+      if (fs.existsSync(LOGO_PATH)) {
+        doc.circle(margin + 36, margin + 39, 26).fillColor('#ffffff').fill();
+        doc.image(LOGO_PATH, margin + 13, margin + 16, { width: 46, height: 46 });
+      }
+
+      if (fs.existsSync(MOTHER_PATH)) {
+        const motherCameoW = 44;
+        const motherCameoH = 54;
+        const motherCenterX = pageWidth - margin - 36;
+        const motherCenterY = margin + 39;
+        doc.save();
+        doc.ellipse(motherCenterX, motherCenterY, motherCameoW / 2, motherCameoH / 2).clip();
+        doc.image(MOTHER_PATH, motherCenterX - motherCameoW / 2, motherCenterY - motherCameoH / 2, {
+          width: motherCameoW,
+          height: motherCameoH,
+        });
+        doc.restore();
+        doc.ellipse(motherCenterX, motherCenterY, motherCameoW / 2 + 1, motherCameoH / 2 + 1)
+          .lineWidth(1.5)
+          .strokeColor('#fde68a')
+          .stroke();
+      }
+
+      const centerStartX = margin + 70;
+      const centerWidth = contentWidth - 140;
+      let curY = margin + 8;
+
+      doc.font('Helvetica-Bold').fontSize(14).fillColor('#ffffff')
+        .text(trustName.toUpperCase(), centerStartX, curY, { align: 'center', width: centerWidth, characterSpacing: 1 });
+      curY += 18;
+
+      if (settings.address) {
+        doc.font('Helvetica').fontSize(7.5).fillColor('#fecdd3')
+          .text(settings.address.replace(/\n/g, ', '), centerStartX, curY, { align: 'center', width: centerWidth });
+        curY += 12;
+      }
+
+      doc.font('Helvetica-Bold').fontSize(9).fillColor('#fde68a')
+        .text('CONSOLIDATED STATEMENT OF EXPENSES & OUTFLOWS', centerStartX, curY, { align: 'center', width: centerWidth, characterSpacing: 0.5 });
+
+      curY = margin + headerHeight + 6;
+
+      // Metadata Ribbon
+      const metaHeight = 20;
+      doc.rect(margin, curY, contentWidth, metaHeight).fillColor('#fff1f2').fill();
+      doc.rect(margin, curY, contentWidth, metaHeight).lineWidth(0.5).strokeColor('#fecdd3').stroke();
+
+      const genDateStr = new Date().toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+
+      let periodLabel = 'All Recorded Expenses';
+      if (filters.year && filters.month) {
+        const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        periodLabel = `${monthNames[parseInt(filters.month)] || filters.month} ${filters.year}`;
+      } else if (filters.year) {
+        periodLabel = `Year ${filters.year}`;
+      }
+
+      doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#9f1239');
+      doc.text(`AUDITED DISBURSEMENT LEDGER`, margin + 10, curY + 6);
+      doc.font('Helvetica').fillColor('#64748b');
+      doc.text(`Period: ${periodLabel}   •   Generated: ${genDateStr}`, margin + 200, curY + 6, {
+        align: 'right',
+        width: contentWidth - 210,
+      });
+
+      curY += metaHeight + 10;
+
+      // KPI Summary Cards
+      const totalAmount = expenses.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+      const totalCount = expenses.length;
+
+      const cardW = (contentWidth - 16) / 3;
+      const cardH = 46;
+
+      doc.rect(margin, curY, cardW, cardH).fillColor('#fff1f2').fill();
+      doc.rect(margin, curY, cardW, cardH).lineWidth(0.5).strokeColor('#fecdd3').stroke();
+      doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#9f1239').text('TOTAL OUTFLOWS (EXPENSES)', margin + 10, curY + 8);
+      doc.font('Helvetica-Bold').fontSize(14).fillColor('#be123c')
+        .text(`${currCode} ${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, margin + 10, curY + 22);
+
+      doc.rect(margin + cardW + 8, curY, cardW, cardH).fillColor('#f8fafc').fill();
+      doc.rect(margin + cardW + 8, curY, cardW, cardH).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
+      doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#475569').text('TOTAL EXPENSE VOUCHERS', margin + cardW + 18, curY + 8);
+      doc.font('Helvetica-Bold').fontSize(14).fillColor('#0f172a')
+        .text(`${totalCount} Vouchers`, margin + cardW + 18, curY + 22);
+
+      doc.rect(margin + (cardW + 8) * 2, curY, cardW, cardH).fillColor('#f8fafc').fill();
+      doc.rect(margin + (cardW + 8) * 2, curY, cardW, cardH).lineWidth(0.5).strokeColor('#cbd5e1').stroke();
+      doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#475569').text('DISBURSEMENT AUDIT', margin + (cardW + 8) * 2 + 10, curY + 8);
+      doc.font('Helvetica-Bold').fontSize(11).fillColor('#059669')
+        .text('Verified & Audited', margin + (cardW + 8) * 2 + 10, curY + 23);
+
+      curY += cardH + 12;
+
+      // Table Header Setup
+      const cols = [
+        { label: '#', width: 22, align: 'center' },
+        { label: 'Voucher No', width: 95, align: 'left' },
+        { label: 'Date', width: 55, align: 'center' },
+        { label: 'Paid To (Payee)', width: 135, align: 'left' },
+        { label: 'Category', width: 95, align: 'left' },
+        { label: 'Mode & Ref', width: 75, align: 'left' },
+        { label: 'Amount (Rs.)', width: 70, align: 'right' },
+      ];
+
+      const drawTableHeader = (yPos) => {
+        doc.rect(margin, yPos, contentWidth, 20).fillColor('#881337').fill();
+        let curX = margin;
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#ffffff');
+        cols.forEach((c) => {
+          doc.text(c.label, curX + 4, yPos + 6, { width: c.width - 8, align: c.align });
+          curX += c.width;
+        });
+        return yPos + 20;
+      };
+
+      curY = drawTableHeader(curY);
+
+      const rowHeight = 22;
+      const maxY = pageHeight - margin - 50;
+
+      expenses.forEach((exp, idx) => {
+        if (curY + rowHeight > maxY) {
+          doc.addPage();
+          drawWatermark();
+          drawPageFrame();
+          curY = margin + 14;
+          curY = drawTableHeader(curY);
+        }
+
+        const isAlt = idx % 2 === 1;
+        doc.rect(margin, curY, contentWidth, rowHeight).fillColor(isAlt ? '#fff1f2' : '#ffffff').fill();
+        doc.rect(margin, curY, contentWidth, rowHeight).lineWidth(0.4).strokeColor('#fecdd3').stroke();
+
+        let curX = margin;
+
+        // Sl
+        doc.font('Helvetica').fontSize(7.5).fillColor('#64748b');
+        doc.text(String(idx + 1), curX, curY + 6, { width: cols[0].width, align: 'center' });
+        curX += cols[0].width;
+
+        // Voucher #
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#be123c');
+        doc.text(exp.expense_number || '', curX + 4, curY + 6, { width: cols[1].width - 8, align: 'left' });
+        curX += cols[1].width;
+
+        // Date
+        let dateStr = '';
+        if (exp.expense_date) {
+          try {
+            dateStr = new Date(exp.expense_date).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: '2-digit' });
+          } catch (e) {
+            dateStr = String(exp.expense_date);
+          }
+        }
+        doc.font('Helvetica').fontSize(7.5).fillColor('#334155');
+        doc.text(dateStr, curX, curY + 6, { width: cols[2].width, align: 'center' });
+        curX += cols[2].width;
+
+        // Payee
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#0f172a');
+        doc.text(exp.payee_name || '', curX + 4, curY + 6, { width: cols[3].width - 8, align: 'left', lineBreak: false });
+        curX += cols[3].width;
+
+        // Category
+        doc.font('Helvetica').fontSize(7).fillColor('#475569');
+        doc.text(exp.category || '', curX + 4, curY + 6, { width: cols[4].width - 8, align: 'left', lineBreak: false });
+        curX += cols[4].width;
+
+        // Mode
+        doc.font('Helvetica').fontSize(7).fillColor('#475569');
+        const modeStr = exp.reference_no ? `${exp.payment_mode} (${exp.reference_no})` : (exp.payment_mode || 'Cash');
+        doc.text(modeStr, curX + 4, curY + 6, { width: cols[5].width - 8, align: 'left', lineBreak: false });
+        curX += cols[5].width;
+
+        // Amount
+        const rowAmt = parseFloat(exp.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 });
+        doc.font('Helvetica-Bold').fontSize(7.5).fillColor('#be123c');
+        doc.text(rowAmt, curX, curY + 6, { width: cols[6].width - 6, align: 'right' });
+
+        curY += rowHeight;
+      });
+
+      // Total Row
+      if (curY + 24 > maxY) {
+        doc.addPage();
+        drawWatermark();
+        drawPageFrame();
+        curY = margin + 14;
+      }
+
+      doc.rect(margin, curY, contentWidth, 22).fillColor('#ffe4e6').fill();
+      doc.rect(margin, curY, contentWidth, 22).lineWidth(0.8).strokeColor('#be123c').stroke();
+      doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#9f1239');
+      doc.text(`TOTAL EXPENDITURE (${totalCount} VOUCHERS)`, margin + 12, curY + 6);
+      doc.text(
+        `${currCode} ${totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+        margin,
+        curY + 6,
+        { width: contentWidth - 10, align: 'right' }
+      );
+
+      curY += 36;
+
+      // Certification Signature Block
+      if (curY + 50 > pageHeight - margin - 20) {
+        doc.addPage();
+        drawWatermark();
+        drawPageFrame();
+        curY = margin + 20;
+      }
+
+      const sigX = pageWidth - margin - 180;
+      if (fs.existsSync(SIGN_PATH)) {
+        doc.image(SIGN_PATH, sigX + 40, curY - 24, { width: 75, height: 32 });
+      }
+      doc.font('Helvetica-Bold').fontSize(8).fillColor('#0f172a')
+        .text('For ' + trustName.toUpperCase(), sigX, curY + 12, { width: 170, align: 'center' });
+      doc.font('Helvetica').fontSize(7.5).fillColor('#64748b')
+        .text(settings.signatory_title || 'Managing Trustee / Authorized Signatory', sigX, curY + 24, { width: 170, align: 'center' });
+
+      // Page numbers footer
+      const range = doc.bufferedPageRange();
+      for (let i = range.start; i < range.start + range.count; i++) {
+        doc.switchToPage(i);
+        const oldBottom = doc.page.margins.bottom;
+        doc.page.margins.bottom = 0;
+        doc.font('Helvetica').fontSize(7).fillColor('#94a3b8')
+          .text(
+            `Page ${i + 1} of ${range.count}   •   ${trustName} — Consolidated Expenses & Outflows Statement`,
+            margin,
+            pageHeight - margin + 6,
+            { align: 'center', width: contentWidth, lineBreak: false }
+          );
+        doc.page.margins.bottom = oldBottom;
+      }
+
+      doc.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 module.exports = {
   generateReceiptPdf,
   generateAllAccountsPdf,
+  generateExpenseVoucherPdf,
+  generateExpensesLedgerPdf,
 };
 
 // If executed directly from command line (e.g. node services/pdfService.js)

@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Receipt, Users, Settings, Plus } from 'lucide-react';
+import { LayoutDashboard, Receipt, Users, Settings, Plus, TrendingDown } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import TopBar from './components/TopBar';
 import DashboardView from './components/DashboardView';
 import ReceiptsView from './components/ReceiptsView';
+import ExpensesView from './components/ExpensesView';
 import DonorsView from './components/DonorsView';
 import HeadsView from './components/HeadsView';
 import SettingsView from './components/SettingsView';
 import NewReceiptModal from './components/NewReceiptModal';
+import NewExpenseModal from './components/NewExpenseModal';
 import ViewReceiptModal from './components/ViewReceiptModal';
 import AuthView from './components/AuthView';
 import DonorPortalView from './components/DonorPortalView';
@@ -20,12 +22,15 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [stats, setStats] = useState(null);
   const [receipts, setReceipts] = useState([]);
+  const [expenses, setExpenses] = useState([]);
   const [heads, setHeads] = useState([]);
   const [donors, setDonors] = useState([]);
   const [settings, setSettings] = useState(null);
   const [liveSettings, setLiveSettings] = useState(null);
   const activeSettings = liveSettings || settings;
-  const [filterState, setFilterState] = useState({ search: '', head_id: '', payment_mode: '' });
+  const [dashboardPeriod, setDashboardPeriod] = useState({ year: new Date().getFullYear(), month: '' });
+  const [filterState, setFilterState] = useState({ search: '', head_id: '', payment_mode: '', year: '', month: '' });
+  const [expenseFilterState, setExpenseFilterState] = useState({ search: '', category: '', payment_mode: '', year: '', month: '' });
 
   // URL-based Navigation State (/admin vs /)
   const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
@@ -67,6 +72,7 @@ export default function App() {
   });
 
   const [isNewReceiptOpen, setIsNewReceiptOpen] = useState(false);
+  const [isNewExpenseOpen, setIsNewExpenseOpen] = useState(false);
   const [viewingReceipt, setViewingReceipt] = useState(null);
   const [toastMessage, setToastMessage] = useState(null);
 
@@ -92,9 +98,13 @@ export default function App() {
   };
 
   // 1. Initial Load of Data
-  const loadDashboard = async () => {
+  const loadDashboard = async (period = dashboardPeriod) => {
     try {
-      const res = await fetch(`${API_BASE}/dashboard/stats`);
+      const params = new URLSearchParams();
+      if (period.year && period.year !== 'all') params.append('year', period.year);
+      if (period.month && period.month !== 'all') params.append('month', period.month);
+
+      const res = await fetch(`${API_BASE}/dashboard/stats?${params.toString()}`);
       const data = await res.json();
       if (data.success) setStats(data.data);
     } catch (err) {
@@ -108,12 +118,31 @@ export default function App() {
       if (filters.search) params.append('search', filters.search);
       if (filters.head_id) params.append('head_id', filters.head_id);
       if (filters.payment_mode) params.append('payment_mode', filters.payment_mode);
+      if (filters.year && filters.year !== 'all') params.append('year', filters.year);
+      if (filters.month && filters.month !== 'all') params.append('month', filters.month);
 
       const res = await fetch(`${API_BASE}/receipts?${params.toString()}`);
       const data = await res.json();
       if (data.success) setReceipts(data.data);
     } catch (err) {
       console.error('Failed to load receipts:', err);
+    }
+  };
+
+  const loadExpenses = async (filters = expenseFilterState) => {
+    try {
+      const params = new URLSearchParams();
+      if (filters.search) params.append('search', filters.search);
+      if (filters.category) params.append('category', filters.category);
+      if (filters.payment_mode) params.append('payment_mode', filters.payment_mode);
+      if (filters.year && filters.year !== 'all') params.append('year', filters.year);
+      if (filters.month && filters.month !== 'all') params.append('month', filters.month);
+
+      const res = await fetch(`${API_BASE}/expenses?${params.toString()}`);
+      const data = await res.json();
+      if (data.success) setExpenses(data.data);
+    } catch (err) {
+      console.error('Failed to load expenses:', err);
     }
   };
 
@@ -151,6 +180,7 @@ export default function App() {
     loadSettings();
     loadDashboard();
     loadReceipts();
+    loadExpenses();
     loadHeads();
     loadDonors();
   }, []);
@@ -160,11 +190,82 @@ export default function App() {
     loadReceipts(newFilters);
   };
 
-  // 2. ONE-CLICK PDF GENERATION FOR ALL ACCOUNTS
+  const handleExpenseFilterChange = (newFilters) => {
+    setExpenseFilterState(newFilters);
+    loadExpenses(newFilters);
+  };
+
+  const handleCreateExpense = async (expensePayload) => {
+    const res = await fetch(`${API_BASE}/expenses`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(expensePayload),
+    });
+    const result = await res.json();
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to record expense voucher');
+    }
+
+    showToast(`Expense voucher ${result.data.expense_number} recorded!`, 'success');
+    loadDashboard();
+    loadExpenses();
+    return result.data;
+  };
+
+  const handleDeleteExpense = async (id) => {
+    try {
+      const res = await fetch(`${API_BASE}/expenses/${id}`, {
+        method: 'DELETE',
+      });
+      const result = await res.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete expense voucher');
+      }
+      showToast(result.message || 'Expense voucher deleted', 'info');
+      loadDashboard();
+      loadExpenses();
+    } catch (err) {
+      showToast(err.message || 'Error deleting expense voucher', 'error');
+    }
+  };
+
+  // 2. ONE-CLICK PDF GENERATION FOR ALL ACCOUNTS & EXPENSES
   const handleExportAllPdf = () => {
     showToast('Generating official All Accounts PDF statement...', 'info');
     const url = `${API_BASE}/receipts/export/all-pdf`;
     window.open(url, '_blank');
+  };
+
+  const handleExportExpensesPdf = (filters = expenseFilterState) => {
+    showToast('Generating official Expenses Statement PDF...', 'info');
+    const params = new URLSearchParams();
+    if (filters.search) params.append('search', filters.search);
+    if (filters.category) params.append('category', filters.category);
+    if (filters.payment_mode) params.append('payment_mode', filters.payment_mode);
+    if (filters.year && filters.year !== 'all') params.append('year', filters.year);
+    if (filters.month && filters.month !== 'all') params.append('month', filters.month);
+
+    const url = `${API_BASE}/expenses/export/all-pdf?${params.toString()}`;
+    window.open(url, '_blank');
+  };
+
+  const handlePeriodChange = (newPeriod) => {
+    setDashboardPeriod(newPeriod);
+    loadDashboard(newPeriod);
+  };
+
+  const handleSelectMonthFilter = (targetTab, yr, mo) => {
+    if (targetTab === 'receipts') {
+      const newFilters = { ...filterState, year: String(yr), month: String(mo) };
+      setFilterState(newFilters);
+      loadReceipts(newFilters);
+      setActiveTab('receipts');
+    } else if (targetTab === 'expenses') {
+      const newFilters = { ...expenseFilterState, year: String(yr), month: String(mo) };
+      setExpenseFilterState(newFilters);
+      loadExpenses(newFilters);
+      setActiveTab('expenses');
+    }
   };
 
   // 3. Create New Receipt
@@ -382,6 +483,7 @@ Warm regards,
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           onExportAllPdf={handleExportAllPdf}
+          onExportExpensesPdf={handleExportExpensesPdf}
           stats={stats}
           settings={activeSettings}
           isOpenMobile={isMobileMenuOpen}
@@ -394,6 +496,7 @@ Warm regards,
             activeTab={activeTab}
             settings={activeSettings}
             onOpenNewReceipt={() => setIsNewReceiptOpen(true)}
+            onOpenNewExpense={() => setIsNewExpenseOpen(true)}
             onExportAllPdf={handleExportAllPdf}
             onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             currentUser={currentUser}
@@ -408,10 +511,14 @@ Warm regards,
               stats={stats}
               settings={activeSettings}
               onOpenNewReceipt={() => setIsNewReceiptOpen(true)}
+              onOpenNewExpense={() => setIsNewExpenseOpen(true)}
               onExportAllPdf={handleExportAllPdf}
               onViewReceipt={(r) => setViewingReceipt(r)}
               onShareWhatsApp={handleShareWhatsApp}
               setActiveTab={setActiveTab}
+              onPeriodChange={handlePeriodChange}
+              periodState={dashboardPeriod}
+              onSelectMonthFilter={handleSelectMonthFilter}
             />
           )}
 
@@ -420,6 +527,7 @@ Warm regards,
               receipts={receipts}
               heads={heads}
               settings={activeSettings}
+              stats={stats}
               filterState={filterState}
               onFilterChange={handleFilterChange}
               onOpenNewReceipt={() => setIsNewReceiptOpen(true)}
@@ -427,6 +535,20 @@ Warm regards,
               onViewReceipt={(r) => setViewingReceipt(r)}
               onShareWhatsApp={handleShareWhatsApp}
               onResendEmail={handleResendEmail}
+            />
+          )}
+
+          {activeTab === 'expenses' && (
+            <ExpensesView
+              expenses={expenses}
+              heads={heads}
+              settings={activeSettings}
+              stats={stats}
+              onOpenNewExpense={() => setIsNewExpenseOpen(true)}
+              onDeleteExpense={handleDeleteExpense}
+              onFilterChange={handleExpenseFilterChange}
+              onExportExpensesPdf={handleExportExpensesPdf}
+              filterState={expenseFilterState}
             />
           )}
 
@@ -468,6 +590,15 @@ Warm regards,
           settings={activeSettings}
         />
 
+        {/* Record New Expense Modal */}
+        <NewExpenseModal
+          isOpen={isNewExpenseOpen}
+          onClose={() => setIsNewExpenseOpen(false)}
+          onSubmit={handleCreateExpense}
+          heads={heads}
+          settings={activeSettings}
+        />
+
         {/* Printable Receipt Preview Modal */}
         <ViewReceiptModal
           isOpen={Boolean(viewingReceipt)}
@@ -497,6 +628,20 @@ Warm regards,
             <span>Daybook</span>
             {stats?.totalReceipts > 0 && (
               <span className="mobile-nav-badge">{stats.totalReceipts}</span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            className={`mobile-nav-item ${activeTab === 'expenses' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('expenses'); setIsMobileMenuOpen(false); }}
+          >
+            <TrendingDown size={20} />
+            <span>Expenses</span>
+            {(stats?.totalExpensesCount || 0) > 0 && (
+              <span className="mobile-nav-badge" style={{ background: '#e11d48' }}>
+                {stats.totalExpensesCount}
+              </span>
             )}
           </button>
 
