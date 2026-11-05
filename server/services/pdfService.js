@@ -152,9 +152,13 @@ function generateReceiptPdf(receipt, settings = {}) {
         y += 15;
       }
 
-      // Dynamic Contact & Registration Info
+      // Dynamic Contact & Registration Info (Legal & Tax Metadata)
       const metaParts = [];
-
+      if (settings.reg_number && settings.reg_number.trim()) metaParts.push(`Reg No: ${settings.reg_number.trim()}`);
+      if (settings.pan_number && settings.pan_number.trim()) metaParts.push(`PAN: ${settings.pan_number.trim()}`);
+      if (settings.tax_exemption_80g && settings.tax_exemption_80g.trim()) metaParts.push(`80G: ${settings.tax_exemption_80g.trim()}`);
+      if (settings.tax_exemption_12a && settings.tax_exemption_12a.trim()) metaParts.push(`12A: ${settings.tax_exemption_12a.trim()}`);
+      if (settings.contact_phone && settings.contact_phone.trim()) metaParts.push(`Ph: ${settings.contact_phone.trim()}`);
 
       if (metaParts.length > 0) {
         doc.font('Helvetica')
@@ -543,7 +547,17 @@ function generateAllAccountsPdf(receipts, settings = {}) {
       if (settings.address) {
         doc.font('Helvetica').fontSize(7).fillColor('#cbd5e1')
           .text(settings.address.replace(/\n/g, ', '), centerStartX, curY, { align: 'center', width: centerWidth });
-        curY += 11;
+        curY += 10;
+      }
+
+      const allAccountsMeta = [];
+      if (settings.reg_number && settings.reg_number.trim()) allAccountsMeta.push(`Reg No: ${settings.reg_number.trim()}`);
+      if (settings.pan_number && settings.pan_number.trim()) allAccountsMeta.push(`PAN: ${settings.pan_number.trim()}`);
+      if (settings.tax_exemption_80g && settings.tax_exemption_80g.trim()) allAccountsMeta.push(`80G: ${settings.tax_exemption_80g.trim()}`);
+      if (allAccountsMeta.length > 0) {
+        doc.font('Helvetica').fontSize(6.5).fillColor('#94a3b8')
+          .text(allAccountsMeta.join('  •  '), centerStartX, curY, { align: 'center', width: centerWidth });
+        curY += 9;
       }
 
       doc.font('Helvetica-Bold').fontSize(8.5).fillColor('#38bdf8')
@@ -954,10 +968,11 @@ function generateExpenseVoucherPdf(expense, settings = {}) {
         .text('Tiruttani – 631209, Tiruvallur District, Tamilnadu.', headerTextX, y, { align: 'center', width: headerTextWidth });
       y += 14;
 
-      // Contact & Registration Info (Only show non-empty fields)
+      // Contact & Registration Info (Legal & Tax Metadata)
       const metaParts = [];
       if (settings.reg_number && settings.reg_number.trim()) metaParts.push(`Reg No: ${settings.reg_number.trim()}`);
       if (settings.pan_number && settings.pan_number.trim()) metaParts.push(`PAN: ${settings.pan_number.trim()}`);
+      if (settings.tax_exemption_80g && settings.tax_exemption_80g.trim()) metaParts.push(`80G: ${settings.tax_exemption_80g.trim()}`);
       if (settings.contact_phone && settings.contact_phone.trim()) metaParts.push(`Ph: ${settings.contact_phone.trim()}`);
       if (metaParts.length > 0) {
         doc.font('Helvetica')
@@ -1198,7 +1213,16 @@ function generateExpensesLedgerPdf(expenses, settings = {}, filters = {}) {
       if (settings.address) {
         doc.font('Helvetica').fontSize(7.5).fillColor('#fecdd3')
           .text(settings.address.replace(/\n/g, ', '), centerStartX, curY, { align: 'center', width: centerWidth });
-        curY += 12;
+        curY += 11;
+      }
+
+      const ledgerMeta = [];
+      if (settings.reg_number && settings.reg_number.trim()) ledgerMeta.push(`Reg No: ${settings.reg_number.trim()}`);
+      if (settings.pan_number && settings.pan_number.trim()) ledgerMeta.push(`PAN: ${settings.pan_number.trim()}`);
+      if (ledgerMeta.length > 0) {
+        doc.font('Helvetica').fontSize(6.5).fillColor('#fecdd3')
+          .text(ledgerMeta.join('  •  '), centerStartX, curY, { align: 'center', width: centerWidth });
+        curY += 10;
       }
 
       doc.font('Helvetica-Bold').fontSize(9).fillColor('#fde68a')
