@@ -758,7 +758,7 @@ app.post('/api/settings', async (req, res) => {
       s.trust_name, s.tagline, s.reg_number, s.tax_exemption_80g, s.tax_exemption_12a,
       s.pan_number, s.address, s.contact_phone, s.email, s.website,
       s.currency_symbol, s.currency_code, s.signatory_name, s.signatory_title,
-      s.receipt_prefix, s.smtp_host || 'smtp.gmail.com', parseInt(s.smtp_port || 587),
+      s.receipt_prefix, s.expense_prefix || 'EXP', s.smtp_host || 'smtp.gmail.com', parseInt(s.smtp_port || 587),
       Boolean(s.smtp_secure), (s.smtp_user || '').trim(), (s.smtp_from_name || '').trim(), (s.smtp_from_email || '').trim(),
       s.whatsapp_message !== undefined ? s.whatsapp_message : '',
     ];
@@ -769,8 +769,8 @@ app.post('/api/settings', async (req, res) => {
         tax_exemption_12a = $5, pan_number = $6, address = $7, contact_phone = $8,
         email = $9, website = $10, currency_symbol = $11, currency_code = $12,
         signatory_name = $13, signatory_title = $14, receipt_prefix = $15,
-        smtp_host = $16, smtp_port = $17, smtp_secure = $18, smtp_user = $19,
-        smtp_from_name = $20, smtp_from_email = $21, whatsapp_message = $22, updated_at = NOW()
+        expense_prefix = $16, smtp_host = $17, smtp_port = $18, smtp_secure = $19, smtp_user = $20,
+        smtp_from_name = $21, smtp_from_email = $22, whatsapp_message = $23, updated_at = NOW()
     `;
 
     if (s.smtp_pass && s.smtp_pass !== '••••••••' && s.smtp_pass.trim() !== '') {

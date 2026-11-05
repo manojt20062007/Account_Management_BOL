@@ -126,6 +126,18 @@ export default function ViewReceiptModal({ receipt, settings, isOpen, onClose, o
                   Subramanya Nagar, Kambar Street, Bye-Pass Road<br />
                   Tiruttani – 631209, Tiruvallur District, Tamilnadu.
                 </div>
+                {(() => {
+                  const parts = [];
+                  if (settings?.reg_number?.trim()) parts.push(`Reg No: ${settings.reg_number.trim()}`);
+                  if (settings?.pan_number?.trim()) parts.push(`PAN: ${settings.pan_number.trim()}`);
+                  if (settings?.tax_exemption_80g?.trim()) parts.push(`80G: ${settings.tax_exemption_80g.trim()}`);
+                  if (settings?.contact_phone?.trim()) parts.push(`Ph: ${settings.contact_phone.trim()}`);
+                  return parts.length > 0 ? (
+                    <div style={{ fontSize: '9px', color: '#64748b', marginTop: '4px', fontWeight: 600 }}>
+                      {parts.join('  •  ')}
+                    </div>
+                  ) : null;
+                })()}
               </div>
               <div style={{
                 width: '85px',

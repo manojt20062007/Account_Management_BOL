@@ -667,6 +667,19 @@ export default function SettingsView({ settings, onSaveSettings, onVerifySmtp, o
               <span className="form-help">Sample output: {formData.receipt_prefix || 'TR/REC'}-1001</span>
             </div>
 
+            {/* Expense Voucher Prefix */}
+            <div className="form-group">
+              <label className="form-label">Expense Voucher Prefix</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="EXP"
+                value={formData.expense_prefix || ''}
+                onChange={(e) => handleChange('expense_prefix', e.target.value.toUpperCase())}
+              />
+              <span className="form-help">Sample output: {formData.expense_prefix || 'EXP'}/2026-27/0001</span>
+            </div>
+
             {/* Currency Symbol & Code */}
             <div className="form-group">
               <label className="form-label">Currency Symbol & Code</label>

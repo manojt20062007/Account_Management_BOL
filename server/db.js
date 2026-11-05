@@ -37,16 +37,16 @@ async function initDatabase() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS trust_settings (
         id SERIAL PRIMARY KEY,
-        trust_name VARCHAR(255) NOT NULL DEFAULT 'SRI SARADA SEVA CHARITABLE TRUST',
-        tagline VARCHAR(255) DEFAULT 'Dedicated to Social Upliftment, Education & Healthcare',
-        reg_number VARCHAR(100) DEFAULT 'TR/BK-IV/452/2012',
-        tax_exemption_80g VARCHAR(100) DEFAULT 'CIT(E)/BLR/80G/2021-22/AABTS1234F',
-        tax_exemption_12a VARCHAR(100) DEFAULT 'CIT(E)/12AA/2013-14/1042',
-        pan_number VARCHAR(50) DEFAULT 'AABTS1234F',
-        address TEXT DEFAULT '#42, Temple Road, Gandhi Nagar, Bengaluru, Karnataka - 560009',
+        trust_name VARCHAR(255) NOT NULL DEFAULT 'Anbin Unavu',
+        tagline VARCHAR(255) DEFAULT '“Humanity – Helping Hands” | “Connecting Compassionate Hearts with People in Need”',
+        reg_number VARCHAR(100) DEFAULT 'TR/631209/2022',
+        tax_exemption_80g VARCHAR(100) DEFAULT 'CIT(E)/80G/2022-23/AACTA1234F',
+        tax_exemption_12a VARCHAR(100) DEFAULT 'CIT(E)/12AA/2022-23/5042',
+        pan_number VARCHAR(50) DEFAULT 'AACTA1234F',
+        address TEXT DEFAULT 'Subramanya Nagar, Kambar Street, Bye-Pass Road, Tiruttani – 631209, Tiruvallur District, Tamilnadu.',
         contact_phone VARCHAR(50) DEFAULT '+91 98765 43210',
-        email VARCHAR(100) DEFAULT 'info@saradatrust.org',
-        website VARCHAR(100) DEFAULT 'www.saradatrust.org',
+        email VARCHAR(100) DEFAULT 'info@anbinunavu.org',
+        website VARCHAR(100) DEFAULT 'www.anbinunavu.org',
         currency_symbol VARCHAR(10) DEFAULT '₹',
         currency_code VARCHAR(10) DEFAULT 'INR',
         signatory_name VARCHAR(100) DEFAULT 'Sri M. R. Sharma',
@@ -82,6 +82,12 @@ async function initDatabase() {
       ALTER TABLE trust_settings ADD COLUMN IF NOT EXISTS next_expense_number INT DEFAULT 1001;
       UPDATE trust_settings SET expense_prefix = 'EXP' WHERE expense_prefix IS NULL AND id = 1;
       UPDATE trust_settings SET next_expense_number = 1001 WHERE next_expense_number IS NULL AND id = 1;
+      UPDATE trust_settings 
+      SET 
+        reg_number = CASE WHEN TRIM(COALESCE(reg_number, '')) = '' THEN 'TR/631209/2022' ELSE reg_number END,
+        pan_number = CASE WHEN TRIM(COALESCE(pan_number, '')) = '' THEN 'AACTA1234F' ELSE pan_number END,
+        tax_exemption_80g = CASE WHEN TRIM(COALESCE(tax_exemption_80g, '')) = '' THEN 'CIT(E)/80G/2022-23/AACTA1234F' ELSE tax_exemption_80g END
+      WHERE id = 1;
     `);
 
     const defaultWhatsAppTemplate = `🙏 *Namaste {donor_name}*,
